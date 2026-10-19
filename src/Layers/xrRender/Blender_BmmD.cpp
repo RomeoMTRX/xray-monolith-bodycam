@@ -234,7 +234,7 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
 		if (RImplementation.o.ssfx_terrain)
 		{
 			C.SH->flags.isLandscape = TRUE;
-			uber_deffer(C, true, "terrain", "terrain_high", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass);
+			uber_deffer(C, true, "impl", "terrain_high", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass); // SSS24: HQ terrain uses the impl VS
 		}
 		else
 #endif
@@ -283,6 +283,9 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_puddles_perlin", "fx\\puddles_perlin");
 		C.r_dx10Texture("s_puddles_mask", strconcat(sizeof(mask), mask, C.L_textures[0].c_str(), "_puddles_mask"));
 		C.r_dx10Texture("s_rainsplash", "fx\\water_sbumpvolume");
+#if RENDER == R_R4
+		C.r_dx10Texture("s_wfall", "fx\\wfall"); // SSS24
+#endif
 
 		C.r_dx10Sampler("smp_base");
 		C.r_dx10Sampler("smp_linear");
@@ -336,6 +339,10 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
 			{
 				C.r_dx10Texture("s_lod_texture", "terrain\\default_lod_textures");
 			}
+
+			// SSS24: optional per-terrain color texture
+			LPSTR ColorTexture = strconcat(sizeof(mask), mask, C.L_textures[0].c_str(), "_color");
+			C.r_dx10Texture("s_color_texture", FS.exist(fn, "$game_textures$", ColorTexture, ".dds") ? ColorTexture : "none");
 		}
 #endif
 
@@ -364,6 +371,16 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
 
 		uber_deffer(C, false, "base", "terrain_low", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass);
 		if (z_prepass) C.RS.SetRS(D3DRS_ZFUNC, D3DCMP_EQUAL);
+
+#if RENDER == R_R4
+		if (RImplementation.o.ssfx_terrain)
+		{
+			// SSS24: optional per-terrain color texture
+			string_path fn;
+			LPSTR ColorTexture = strconcat(sizeof(mask), mask, C.L_textures[0].c_str(), "_color");
+			C.r_dx10Texture("s_color_texture", FS.exist(fn, "$game_textures$", ColorTexture, ".dds") ? ColorTexture : "none");
+		}
+#endif
 
 		C.r_dx10Sampler("smp_linear");
 
