@@ -502,6 +502,7 @@ void CRender::create()
 	o.ssfx_terrain = FS.exist(fn, "$game_shaders$", "r3\\deffer_terrain_high_flat_d", ".ps") ? 1 : 0;
 	o.ssfx_volumetric = FS.exist(fn, "$game_shaders$", "r3\\ssfx_volumetric_blur", ".ps") ? 1 : 0;
 	o.ssfx_water = FS.exist(fn, "$game_shaders$", "r3\\ssfx_water", ".ps") ? 1 : 0;
+	o.ssfx_ice = FS.exist(fn, "$game_shaders$", "r3\\ssfx_ice", ".ps") ? 1 : 0; // SSS24
 	o.ssfx_ao = FS.exist(fn, "$game_shaders$", "r3\\ssfx_ao", ".ps") ? 1 : 0;
 	o.ssfx_il = FS.exist(fn, "$game_shaders$", "r3\\ssfx_il", ".ps") ? 1 : 0;
 	o.ssfx_sss = FS.exist(fn, "$game_shaders$", "r3\\ssfx_sss", ".ps") ? 1 : 0;
@@ -512,7 +513,7 @@ void CRender::create()
 	o.ssfx_motionvectors = FS.exist(fn, "$game_shaders$", "r3\\screenspace_mvectors", ".h") ? 1 : 0;
 	o.ssfx_glass = FS.exist(fn, "$game_shaders$", "r3\\ssfx_glass", ".ps") ? 1 : 0; 
 
-	Msg("- Supports SSS UPDATE 23");
+	Msg("- Supports SSS UPDATE 24 [ RC2 - MT ]");
 	Msg("- SSS CORE INSTALLED %i", o.ssfx_core);
 	Msg("- SSS HUD SHADER INSTALLED %i", o.ssfx_hud_raindrops);
 	Msg("- SSS MOTION VECTORS SHADER INSTALLED %i", o.ssfx_motionvectors);
@@ -523,6 +524,7 @@ void CRender::create()
 	Msg("- SSS TERRAIN SHADER INSTALLED %i", o.ssfx_terrain);
 	Msg("- SSS VOLUMETRIC SHADER INSTALLED %i", o.ssfx_volumetric);
 	Msg("- SSS WATER SHADER INSTALLED %i", o.ssfx_water);
+	Msg("- SSS ICE SHADER INSTALLED %i", o.ssfx_ice);
 	Msg("- SSS AO SHADER INSTALLED %i", o.ssfx_ao);
 	Msg("- SSS IL SHADER INSTALLED %i", o.ssfx_il);
 	Msg("- SSS SSS SHADER INSTALLED %i", o.ssfx_sss);
