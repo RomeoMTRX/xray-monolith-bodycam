@@ -49,6 +49,7 @@ public:
 		u32 ssfx_terrain : 1;
 		u32 ssfx_volumetric : 1;
 		u32 ssfx_water : 1;
+		u32 ssfx_ice : 1; // SSS24
 		u32 ssfx_ao : 1;
 		u32 ssfx_il : 1;
 		u32 ssfx_core : 1;
