@@ -144,6 +144,7 @@ public:
 		u32 bLandscape : 1;
 		u32 isLandscape : 1;
 		u32 isWater : 1;
+		u32 bAfterUpscaling : 1; // SSS24: render after the upscaling pass
 
 		u32 iScopeLense : 4; //  Redotix99: for 3D Shader Based Scopes / pip widened to 4 bits (reflex sights use ==10, non-lens late-pass meshes ==11)
 	};
