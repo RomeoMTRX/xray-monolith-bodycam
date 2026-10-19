@@ -823,7 +823,9 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 	s_ssfx_volumetric_blur.create(b_ssfx_volumetric_blur, "ssfx_volumetric_blur"); // Volumetric Blur
 	
 	s_ssfx_water_ssr.create("ssfx_water_ssr"); // Water SSR
-	s_ssfx_water.create("ssfx_water"); // Water
+	// SSS24: ssfx_water.s needs the level name ( flowmaps ), so it's created on level load when no level exists yet
+	if (g_pGameLevel)
+		s_ssfx_water.create("ssfx_water"); // Water
 	s_ssfx_water_blur.create(b_ssfx_water_blur, "ssfx_water_blur"); // Water
 
 	s_ssfx_ao.create(b_ssfx_ao, "ssfx_ao"); // SSR
