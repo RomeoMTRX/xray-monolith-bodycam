@@ -34,6 +34,10 @@ public:
 
 	LPCSTR _get_level()
 	{
+		// SSS24: shaders can be compiled before a level exists ( e.g. at startup )
+		if (!g_pGameLevel)
+			return "NULL MAP";
+
 		const shared_str level_name = g_pGameLevel->name();
 		return level_name.c_str();
 	}
@@ -216,6 +220,13 @@ public:
 	adopt_compiler& _dx10ATOC(bool Enable)
 	{
 		C->RS.SetRS(XRDX10RS_ALPHATOCOVERAGE, Enable);
+		return *this;
+	}
+
+	// SSS24: element is rendered after the upscaling pass
+	adopt_compiler& _o_afterupscaling(bool E)
+	{
+		C->SH->flags.bAfterUpscaling = E;
 		return *this;
 	}
 
@@ -417,6 +428,7 @@ void CResourceManager::LS_Load()
 		.def("dx10cullmode", &adopt_compiler::_dx10CullMode, return_reference_to<1>())
 		.def("dx10atoc", &adopt_compiler::_dx10ATOC, return_reference_to<1>())
 		.def("dx10zfunc", &adopt_compiler::_dx10ZFunc, return_reference_to<1>())
+		.def("afterupscaling", &adopt_compiler::_o_afterupscaling, return_reference_to<1>()) // SSS24
 
 		.def("dx10sampler", &adopt_compiler::_dx10sampler) // returns sampler-object
 		.def("dx10Options", &adopt_compiler::_dx10Options), // returns options-object	
@@ -578,6 +590,15 @@ Shader* CResourceManager::_lua_Create(LPCSTR d_shader, LPCSTR s_textures)
 		C.bDetail = dxRenderDeviceRender::Instance().Resources->m_textures_description.GetDetailTexture(
 			C.L_textures[0], C.detail_texture, C.detail_scaler);
 		S.E[1] = C._lua_Compile(s_shader, "normal");
+	}
+
+	// SSS24: Compile element	(LOD1) - dedicated LOD element overrides "normal"
+	if (Script::bfIsObjectPresent(LSVM, s_shader, "normal_lod",LUA_TFUNCTION))
+	{
+		C.iElement = 1;
+		C.bDetail = dxRenderDeviceRender::Instance().Resources->m_textures_description.GetDetailTexture(
+			C.L_textures[0], C.detail_texture, C.detail_scaler);
+		S.E[1] = C._lua_Compile(s_shader, "normal_lod");
 	}
 
 	// Compile element
