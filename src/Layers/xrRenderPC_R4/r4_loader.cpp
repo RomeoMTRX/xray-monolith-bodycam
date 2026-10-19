@@ -396,6 +396,16 @@ void CRender::level_Load(IReader* fs)
 		Details->Load();
 	}
 
+	// SSS24: create the water shader now that the level name is known ( flowmaps )
+	if (o.ssfx_water)
+	{
+		Msg("- level_Load() -> create(`ssfx_water`)");
+		if (TargetMain)
+			TargetMain->s_ssfx_water.create("ssfx_water");
+		if (TargetSVP && TargetSVP != TargetMain)
+			TargetSVP->s_ssfx_water.create("ssfx_water");
+	}
+
 	// Sectors
 	//	g_pGamePersistent->LoadTitle("st_loading_sectors_portals");
 	g_pGamePersistent->LoadTitle();
