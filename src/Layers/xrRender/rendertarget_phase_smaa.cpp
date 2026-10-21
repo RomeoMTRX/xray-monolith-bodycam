@@ -104,7 +104,7 @@ void CRenderTarget::phase_smaa()
 
 #if defined(USE_DX11)
 
-void CRenderTarget::phase_ssfx_taa()
+void CRenderTarget::phase_ssfx_taa(bool to_scene_aa)
 {
 	// a scope edge swaps the content source under the resolve, seed the history with the current
 	// frame so a stale scene never ghosts through
@@ -211,8 +211,8 @@ void CRenderTarget::phase_ssfx_taa()
 	HW.pContext->CopyResource(rt_ssfx_prev_frame->pTexture->surface_get(), dest_rt->pTexture->surface_get());
 	svp_copy_end(SVP_CP_HIST);
 
-	// Sharpening phase
-	u_setrt(rt_Generic_0, nullptr, nullptr, nullptr);
+	// Sharpening phase ( SSS24: the core pipeline resolves into scene_aa )
+	u_setrt((to_scene_aa && rt_scene_aa) ? rt_scene_aa : rt_Generic_0, nullptr, nullptr, nullptr);
 	RCache.set_CullMode(CULL_NONE);
 	RCache.set_Stencil(FALSE);
 

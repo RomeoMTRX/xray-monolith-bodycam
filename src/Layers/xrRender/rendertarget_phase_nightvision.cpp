@@ -1,4 +1,13 @@
 #include "stdafx.h"
+
+// SSS24: with the SSS core installed the post effects read and write the scene_aa chain ( R4 only )
+#if defined(USE_DX11)
+#define SSFX_POST_DEST ssfx_post_dest()
+#define SSFX_POST_SRC ssfx_post_src()
+#else
+#define SSFX_POST_DEST (RImplementation.o.dx10_msaa ? rt_Generic : rt_Color)
+#define SSFX_POST_SRC rt_Generic_0
+#endif
 #include "../../xrEngine/environment.h"
 
 void CRenderTarget::phase_nightvision()
@@ -24,7 +33,7 @@ void CRenderTarget::phase_nightvision()
 	//////////////////////////////////////////////////////////////////////////
 	//Set MSAA/NonMSAA rendertarget
 #if defined(USE_DX10) || defined(USE_DX11)
-	ref_rt& dest_rt = RImplementation.o.dx10_msaa ? rt_Generic : rt_Color;
+	ref_rt& dest_rt = SSFX_POST_DEST; // SSS24
 	u_setrt(dest_rt, nullptr, nullptr, nullptr);
 #else
 	u_setrt(rt_Generic_0, nullptr, nullptr, nullptr);
@@ -58,7 +67,7 @@ void CRenderTarget::phase_nightvision()
 	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
 	
 #if defined(USE_DX10) || defined(USE_DX11)
-	HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), dest_rt->pTexture->surface_get());
+	HW.pContext->CopyResource(SSFX_POST_SRC->pTexture->surface_get(), dest_rt->pTexture->surface_get()); // SSS24
 #endif
 };
 
@@ -87,7 +96,7 @@ void CRenderTarget::phase_fakescope()
 	//////////////////////////////////////////////////////////////////////////
 	//Set MSAA/NonMSAA rendertarget
 #if defined(USE_DX10) || defined(USE_DX11)
-	ref_rt& dest_rt = RImplementation.o.dx10_msaa ? rt_Generic : rt_Color;
+	ref_rt& dest_rt = SSFX_POST_DEST; // SSS24
 	u_setrt(dest_rt, nullptr, nullptr, nullptr);
 
 	RCache.set_CullMode(CULL_NONE);
@@ -108,7 +117,7 @@ void CRenderTarget::phase_fakescope()
 	RCache.set_Geometry(g_combine);
 	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
 
-	HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), dest_rt->pTexture->surface_get());
+	HW.pContext->CopyResource(SSFX_POST_SRC->pTexture->surface_get(), dest_rt->pTexture->surface_get()); // SSS24
 #else
 	//Main pass (we avoid write-read from the same buffer)
 	u_setrt(rt_Generic_PingPong, nullptr, nullptr, nullptr);
@@ -178,7 +187,7 @@ void CRenderTarget::phase_heatvision()
 	//////////////////////////////////////////////////////////////////////////
 	//Set MSAA/NonMSAA rendertarget
 #if defined(USE_DX10) || defined(USE_DX11)
-	ref_rt& dest_rt = RImplementation.o.dx10_msaa ? rt_Generic : rt_Color;
+	ref_rt& dest_rt = SSFX_POST_DEST; // SSS24
 	u_setrt(dest_rt, nullptr, nullptr, nullptr);
 #else
 	u_setrt(rt_Generic_0, nullptr, nullptr, nullptr);
@@ -203,7 +212,7 @@ void CRenderTarget::phase_heatvision()
 	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
 
 #if defined(USE_DX10) || defined(USE_DX11)
-	HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), dest_rt->pTexture->surface_get());
+	HW.pContext->CopyResource(SSFX_POST_SRC->pTexture->surface_get(), dest_rt->pTexture->surface_get()); // SSS24
 #endif
 };
 //--DSR-- HeatVision_start

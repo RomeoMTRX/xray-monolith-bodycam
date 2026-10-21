@@ -1,5 +1,14 @@
 #include "stdafx.h"
 
+// SSS24: with the SSS core installed the post effects read and write the scene_aa chain ( R4 only )
+#if defined(USE_DX11)
+#define SSFX_POST_DEST ssfx_post_dest()
+#define SSFX_POST_SRC ssfx_post_src()
+#else
+#define SSFX_POST_DEST (RImplementation.o.dx10_msaa ? rt_Generic : rt_Color)
+#define SSFX_POST_SRC rt_Generic_0
+#endif
+
 void CRenderTarget::phase_dof()
 {
 	//Constants
@@ -55,7 +64,7 @@ void CRenderTarget::phase_dof()
 	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
 	////////////////////////////////////////////////////////////////////////////
 #if defined(USE_DX10) || defined(USE_DX11)
-	ref_rt& dest_rt = RImplementation.o.dx10_msaa ? rt_Generic : rt_Color;
+	ref_rt& dest_rt = SSFX_POST_DEST; // SSS24
 	u_setrt(dest_rt, nullptr, nullptr, nullptr);
 #else
 	u_setrt(rt_Generic_0, nullptr, nullptr, nullptr);
@@ -82,7 +91,7 @@ void CRenderTarget::phase_dof()
 	//Resolve RT
 #if defined(USE_DX10) || defined(USE_DX11)
 	svp_copy_begin(SVP_CP_TAIL, rt_copy_bytes(rt_Generic_0));
-	HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), dest_rt->pTexture->surface_get());
+	HW.pContext->CopyResource(SSFX_POST_SRC->pTexture->surface_get(), dest_rt->pTexture->surface_get()); // SSS24
 	svp_copy_end(SVP_CP_TAIL);
 #endif
 };
