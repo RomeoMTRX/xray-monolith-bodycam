@@ -194,7 +194,7 @@ void CRenderTarget::reticle_glow_compose()
 {
 	if (this != RImplementation.TargetMain || reticle_glow_frame != Device.dwFrame || reticle_glow_composed_frame == Device.dwFrame)
 		return;
-	reticle_glow_composite(RImplementation.o.dx10_msaa ? rt_Generic : rt_Color, false);
+	reticle_glow_composite(ssfx_post_dest(), false); // SSS24: scene_final on the core path
 }
 
 // Night vision intensifies the reticle's light like the rest of the scene: under it the reticle's light is added
@@ -204,7 +204,7 @@ void CRenderTarget::reticle_glow_compose_before_nightvision()
 {
 	if (this != RImplementation.TargetMain || reticle_glow_frame != Device.dwFrame)
 		return;
-	reticle_glow_composite(rt_Generic_0, true);
+	reticle_glow_composite(ssfx_post_src(), true); // SSS24: scene_aa on the core path
 	reticle_glow_composed_frame = Device.dwFrame;
 }
 

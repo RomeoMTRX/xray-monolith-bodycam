@@ -763,6 +763,31 @@ void CRenderTarget::phase_combine()
         RImplementation.GMBase.r_dsgraph_render_physical_glass();
     }
 
+	// SSS24 core pipeline: the image is anti-aliased here and every effect after reads and writes the
+	// scene_aa chain, combine_2 resolves into scene_final for the final post process
+	const bool ssfx_core_path = RImplementation.o.ssfx_core && rt_scene_aa && rt_scene_final;
+	const bool svp_pass_core = Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp;
+	if (ssfx_core_path)
+	{
+		PIX_EVENT(SSFX_CORE_AA);
+		// the SVP pass already ran its TAA ( early, into rt_Generic_0 )
+		if (!svp_pass_core && RImplementation.o.ssfx_taa && ps_ssfx_taa.x > 0)
+		{
+			tm_beg(svp_stats::SEC_C_TAA);
+			phase_ssfx_taa(true);
+			tm_end(svp_stats::SEC_C_TAA);
+		}
+		else
+			HW.pContext->CopyResource(rt_scene_aa->pTexture->surface_get(), rt_Generic_0->pTexture->surface_get());
+
+		// position and heat for the display resolution passes, same resolution without an upscaler
+		if (!RImplementation.o.dx10_msaa && rt_upscaled_pos && rt_upscaled_heat && rt_Position && rt_Heat)
+		{
+			HW.pContext->CopyResource(rt_upscaled_pos->pTexture->surface_get(), rt_Position->pTexture->surface_get());
+			HW.pContext->CopyResource(rt_upscaled_heat->pTexture->surface_get(), rt_Heat->pTexture->surface_get());
+		}
+	}
+
 	// Compute blur textures for the SVP post effects without changing the DLSS input
 	// Off keeps the stock IsSVPFrame skip
 	if ((Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp) || !Device.m_SecondViewport.IsSVPFrame())
@@ -846,7 +871,7 @@ void CRenderTarget::phase_combine()
 	}
 
     //SMAA
-	if (ps_smaa_quality && !svp_dlss_skip_aa) // pip skip on the DLSS SVP pass (eval reconstructs)
+	if (ps_smaa_quality && !svp_dlss_skip_aa && !ssfx_core_path) // pip skip on the DLSS SVP pass (eval reconstructs), SSS24 core uses TAA only
 	{
         //PIX_EVENT(SMAA);
         phase_smaa();
@@ -854,7 +879,7 @@ void CRenderTarget::phase_combine()
     }
 	
 	// main + off path TAA at the stock position (the true-PiP SVP ran its TAA early, above)
-	if (RImplementation.o.ssfx_taa && ps_ssfx_taa.x > 0 &&
+	if (RImplementation.o.ssfx_taa && ps_ssfx_taa.x > 0 && !ssfx_core_path &&
 		!(Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp))
 	{
 		tm_beg(svp_stats::SEC_C_TAA);
@@ -872,6 +897,10 @@ void CRenderTarget::phase_combine()
 		RImplementation.GMBase.RGraph.mapReflexHUDSorted.clear();
 		RImplementation.GMBase.RGraph.mapScopeHUDOverlay.clear();
 	}
+
+	// SSS24: the SVP image is taken from rt_Generic_0, hand it the post processed scene
+	if (ssfx_core_path && svp_pass_core)
+		HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), rt_scene_aa->pTexture->surface_get());
 
 	if (ssfx_PrevPos_Requiered)
 	{
@@ -891,12 +920,12 @@ void CRenderTarget::phase_combine()
 	// Combine everything + perform AA
 	if (RImplementation.o.dx10_msaa)
 	{
-		if (PP_Complex) u_setrt(rt_Generic, 0, 0, HW.pBaseZB); // LDR RT
+		if (PP_Complex) u_setrt(ssfx_core_path ? rt_scene_final : rt_Generic, 0, 0, HW.pBaseZB); // LDR RT ( SSS24: scene_final )
 		else u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
 	}
 	else
 	{
-		if (PP_Complex) u_setrt(rt_Color, 0, 0, HW.pBaseZB); // LDR RT
+		if (PP_Complex) u_setrt(ssfx_core_path ? rt_scene_final : rt_Color, 0, 0, HW.pBaseZB); // LDR RT ( SSS24: scene_final )
 		else u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
 	}
 	//. u_setrt				( Device.dwWidth,Device.dwHeight,HW.pBaseRT,NULL,NULL,HW.pBaseZB);
@@ -1016,11 +1045,11 @@ void CRenderTarget::phase_combine()
 	if (RImplementation.o.dx11_hdr10) {
 		// TODO: we should be able to avoid a copy if both are enabled
 		if (ps_r4_hdr10_bloom_on) {
-			HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), rt_Color->pTexture->surface_get());
+			HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), (ssfx_core_path ? rt_scene_final : rt_Color)->pTexture->surface_get());
 			phase_hdr10_bloom(); // samples from rt_Generic_0, writes to rt_Color
 		}
 		if (ps_r4_hdr10_flare_on) {
-			HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), rt_Color->pTexture->surface_get());
+			HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), (ssfx_core_path ? rt_scene_final : rt_Color)->pTexture->surface_get());
 			phase_hdr10_lens_flare(); // samples from rt_Generic_0, writes to rt_Color
 		}
 	}

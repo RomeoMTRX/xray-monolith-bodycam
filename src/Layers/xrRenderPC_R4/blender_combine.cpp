@@ -69,13 +69,16 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 		//C.r_Sampler_clf		("s_distort",		r2_RT_generic1);
 
 		C.r_dx10Texture("s_position", r2_RT_P);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
 		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
 		C.r_dx10Texture("s_distort", r2_RT_generic1);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
 		C.r_dx10Texture("s_blur_8", r2_RT_blur_8);
+		C.r_dx10Texture("s_debug", r2_RT_3dss_mask); // SSS24
+		C.r_dx10Texture("s_debug2", r2_RT_temp_zb); // SSS24
+		C.r_dx10Texture("s_debug5", r2_RT_ssfx_bloom_emissive); // SSS24
 
 		C.r_dx10Texture("s_lut_atlas", "shaders\\lut_atlas");
 		C.r_dx10Texture("s_lens_dirt", "shaders\\lens_dirt");
@@ -100,13 +103,16 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 		//C.r_Sampler_clf		("s_distort",		r2_RT_generic1);
 
 		C.r_dx10Texture("s_position", r2_RT_P);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
 		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
 		C.r_dx10Texture("s_distort", r2_RT_generic1);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
 		C.r_dx10Texture("s_blur_8", r2_RT_blur_8);
+		C.r_dx10Texture("s_debug", r2_RT_3dss_mask); // SSS24
+		C.r_dx10Texture("s_debug2", r2_RT_temp_zb); // SSS24
+		C.r_dx10Texture("s_debug5", r2_RT_ssfx_bloom_emissive); // SSS24
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
@@ -130,13 +136,16 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 		//C.r_Sampler_clf		("s_distort",		r2_RT_generic1);
 
 		C.r_dx10Texture("s_position", r2_RT_P);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
 		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
 		C.r_dx10Texture("s_distort", r2_RT_generic1);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
 		C.r_dx10Texture("s_blur_8", r2_RT_blur_8);
+		C.r_dx10Texture("s_debug", r2_RT_3dss_mask); // SSS24
+		C.r_dx10Texture("s_debug2", r2_RT_temp_zb); // SSS24
+		C.r_dx10Texture("s_debug5", r2_RT_ssfx_bloom_emissive); // SSS24
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
@@ -161,13 +170,16 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 		//C.r_Sampler_clf		("s_distort",		r2_RT_generic1);
 
 		C.r_dx10Texture("s_position", r2_RT_P);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
 		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
 		C.r_dx10Texture("s_distort", r2_RT_generic1);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
 		C.r_dx10Texture("s_blur_8", r2_RT_blur_8);
+		C.r_dx10Texture("s_debug", r2_RT_3dss_mask); // SSS24
+		C.r_dx10Texture("s_debug2", r2_RT_temp_zb); // SSS24
+		C.r_dx10Texture("s_debug5", r2_RT_ssfx_bloom_emissive); // SSS24
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
@@ -267,13 +279,16 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 		//C.r_Sampler_clf		("s_distort",		r2_RT_generic1);
 
 		C.r_dx10Texture("s_position", r2_RT_P);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
 		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
 		C.r_dx10Texture("s_distort", r2_RT_generic1_r);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
 		C.r_dx10Texture("s_blur_8", r2_RT_blur_8);
+		C.r_dx10Texture("s_debug", r2_RT_3dss_mask); // SSS24
+		C.r_dx10Texture("s_debug2", r2_RT_temp_zb); // SSS24
+		C.r_dx10Texture("s_debug5", r2_RT_ssfx_bloom_emissive); // SSS24
 
 		C.r_dx10Texture("s_lut_atlas", "shaders\\lut_atlas");
 		C.r_dx10Texture("s_lens_dirt", "shaders\\lens_dirt");
@@ -298,13 +313,16 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 		//C.r_Sampler_clf		("s_distort",		r2_RT_generic1);
 
 		C.r_dx10Texture("s_position", r2_RT_P);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
 		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
 		C.r_dx10Texture("s_distort", r2_RT_generic1_r);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
 		C.r_dx10Texture("s_blur_8", r2_RT_blur_8);
+		C.r_dx10Texture("s_debug", r2_RT_3dss_mask); // SSS24
+		C.r_dx10Texture("s_debug2", r2_RT_temp_zb); // SSS24
+		C.r_dx10Texture("s_debug5", r2_RT_ssfx_bloom_emissive); // SSS24
 
 		C.r_dx10Texture("s_lut_atlas", "shaders\\lut_atlas");
 		C.r_dx10Texture("s_lens_dirt", "shaders\\lens_dirt");
@@ -328,13 +346,16 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 		//C.r_Sampler_clf		("s_distort",		r2_RT_generic1);
 
 		C.r_dx10Texture("s_position", r2_RT_P);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
 		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
 		C.r_dx10Texture("s_distort", r2_RT_generic1_r);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
 		C.r_dx10Texture("s_blur_8", r2_RT_blur_8);
+		C.r_dx10Texture("s_debug", r2_RT_3dss_mask); // SSS24
+		C.r_dx10Texture("s_debug2", r2_RT_temp_zb); // SSS24
+		C.r_dx10Texture("s_debug5", r2_RT_ssfx_bloom_emissive); // SSS24
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
@@ -359,13 +380,16 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 		//C.r_Sampler_clf		("s_distort",		r2_RT_generic1);
 
 		C.r_dx10Texture("s_position", r2_RT_P);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
 		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
 		C.r_dx10Texture("s_distort", r2_RT_generic1_r);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
 		C.r_dx10Texture("s_blur_8", r2_RT_blur_8);
+		C.r_dx10Texture("s_debug", r2_RT_3dss_mask); // SSS24
+		C.r_dx10Texture("s_debug2", r2_RT_temp_zb); // SSS24
+		C.r_dx10Texture("s_debug5", r2_RT_ssfx_bloom_emissive); // SSS24
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug

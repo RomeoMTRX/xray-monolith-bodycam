@@ -16,7 +16,7 @@ void CBlender_blur::Compile(CBlender_Compile& C)
 	{
 	case 0:	//Fullres Horizontal
 		C.r_Pass("stub_screen_space", "pp_blur", FALSE, FALSE, FALSE);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_lut_atlas", "shaders\\lut_atlas");
 
@@ -507,6 +507,17 @@ void CBlender_ssfx_rain::Compile(CBlender_Compile& C)
 
 		C.r_End();
 		break;
+
+	case 2: // SSS24: Rain ripples generation ( rendered to rt_ssfx_rain_ripples )
+		C.r_Pass("stub_screen_space", "ssfx_rain_ripples", FALSE, FALSE, FALSE);
+
+		C.r_dx10Texture("tex_ripples", "fx\\water_sbumpvolume");
+
+		C.r_dx10Sampler("smp_linear");
+		C.r_dx10Sampler("smp_nofilter");
+
+		C.r_End();
+		break;
 	}
 }
 
@@ -552,10 +563,22 @@ void CBlender_ssfx_water_blur::Compile(CBlender_Compile& C)
 		C.r_End();
 		break;
 
+	case 4:	// SSS24: Water Waves - build normals from the generated height field
+		C.r_Pass("stub_screen_space", "ssfx_water_waves_build", FALSE, FALSE, FALSE);
+
+		C.r_dx10Texture("water_waves", r2_RT_ssfx_water_waves_tmp);
+		C.r_dx10Texture("water_n0", "fx\\water_normal");
+		C.r_dx10Texture("water_n1", "water\\water_normal");
+
+		C.r_dx10Sampler("smp_linear");
+		C.r_End();
+		break;
+
 	case 5:	// Water Waves
 		C.r_Pass("stub_screen_space", "ssfx_water_waves", FALSE, FALSE, FALSE);
 
 		C.r_dx10Texture("water_waves", "fx\\water_height");
+		C.r_dx10Texture("water_n0", "fx\\water_normal"); // SSS24
 
 		C.r_dx10Sampler("smp_linear");
 		C.r_End();

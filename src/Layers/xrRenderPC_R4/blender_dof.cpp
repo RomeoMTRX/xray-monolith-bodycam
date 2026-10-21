@@ -17,7 +17,7 @@ void CBlender_dof::Compile(CBlender_Compile& C)
 	case 0:
 		C.r_Pass("stub_screen_space", "depth_of_field", FALSE, FALSE, FALSE);
 		C.r_dx10Texture("s_position", r2_RT_P);
-		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
         C.r_dx10Texture("scope_glass_motion", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);		
 	

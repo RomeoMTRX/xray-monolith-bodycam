@@ -120,6 +120,23 @@
 
 #define		r2_RT_ssfx_prevPos		"$user$ssfx_prev_p" // Prev Position
 
+// SSS24 ( Screen Space Shaders - Update 24 )
+#define		r2_RT_ssfx_water_waves_tmp	"$user$ssfx_water_waves_tmp" // Water waves height field
+#define		r2_RT_ssfx_rain_ripples		"$user$ssfx_rain_ripples" // Rain ripples ( mipmapped )
+#define		r2_RT_ssfx_taa_data			"$user$ssfx_rt_ssfx_taa_data" // TAA data
+#define		r2_RT_ssfx_taa_pv_frame		"$user$ssfx_taa_pv_frame" // TAA previous frame
+#define		r2_RT_scene_aa				"$user$scene_aa" // Scene after AA ( display resolution )
+#define		r2_RT_scene_final			"$user$scene_final" // Final scene ( display resolution )
+#define		r2_RT_3dss_mask				"$user$3dssmask" // 3DSS scope mask
+#define		r2_RT_sun_smap_depth0		"$user$sun_smap_depth0" // Sun cascade 0 shadow map
+#define		r2_RT_sun_smap_depth1		"$user$sun_smap_depth1" // Sun cascade 1 shadow map
+#define		r2_RT_sun_smap_depth2		"$user$sun_smap_depth2" // Sun cascade 2 shadow map
+#define		r2_RT_upscaled_pos			"$user$upscaled_pos" // Position at display resolution
+#define		r2_RT_upscaled_heat			"$user$upscaled_heat" // Heat at display resolution
+#define		r2_RT_upscaled_pos_pv		"$user$upscaled_pos_pv" // Upscaler history
+#define		r2_RT_upscaled_data_pv		"$user$upscaled_data_pv" // Upscaler history
+#define		r2_RT_temp_zb				"$user$temp_zb" // HUD / 3DSS depth
+
 #define		JITTER(a) r2_jitter #a
 
 const float SMAP_near_plane = .1f;

@@ -604,7 +604,7 @@ void ScopeVslr::draw_sphere(CRenderTarget& target)
         anchored_ = true;
     }
     if (!bound_) return;
-    target.u_setrt(target.rt_Color, nullptr, nullptr, HW.pBaseZB);
+    target.u_setrt((RImplementation.o.ssfx_core && target.rt_scene_final) ? target.rt_scene_final : target.rt_Color, nullptr, nullptr, HW.pBaseZB); // SSS24
     RCache.set_Element(resolve_->E[element_sphere]);
     vector_constant("vslr_sphere", sphere_position_, sphere_radius_m);
     RCache.set_c("vslr_origin", published_.x, published_.y, published_.z, 0);

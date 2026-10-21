@@ -13,7 +13,7 @@ void CBlender_gasmask_dudv::Compile(CBlender_Compile& C)
 	IBlender::Compile(C);
 
 	C.r_Pass("stub_screen_space", "gasmask_dudv", FALSE, FALSE, FALSE);
-	C.r_dx10Texture("s_image", r2_RT_generic0);
+	C.r_dx10Texture("s_image", RImplementation.o.ssfx_core ? r2_RT_scene_aa : r2_RT_generic0); // SSS24
 	C.r_dx10Texture("s_mask_droplets", "shaders\\gasmasks\\mask_droplets");
 
 	C.r_dx10Texture("s_mask_nm_1", "shaders\\gasmasks\\mask_nm_1");

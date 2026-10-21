@@ -407,6 +407,21 @@ void CRenderTarget::SetActive(bool force)
 }
 #endif
 
+// SSS24: post effects render into post_dest and copy back into post_src ( scene_aa chain when the SSS core is installed )
+ref_rt& CRenderTarget::ssfx_post_dest()
+{
+	if (RImplementation.o.ssfx_core && rt_scene_final)
+		return rt_scene_final;
+	return RImplementation.o.dx10_msaa ? rt_Generic : rt_Color;
+}
+
+ref_rt& CRenderTarget::ssfx_post_src()
+{
+	if (RImplementation.o.ssfx_core && rt_scene_aa)
+		return rt_scene_aa;
+	return rt_Generic_0;
+}
+
 CRenderTarget::CRenderTarget()
 	: CRenderTarget(nullptr, Device.dwWidth, Device.dwHeight)
 {
@@ -768,6 +783,15 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 		rt_ssfx_water_waves = createUnique(r2_RT_ssfx_water_waves, 512, 512, D3DFMT_A8R8G8B8); // Water Waves
 
 		rt_ssfx_prevPos = createUnique(r2_RT_ssfx_prevPos, w, h, D3DFMT_A16B16G16R16F, SampleCount);
+
+		// SSS24 core pipeline targets ( same formats as their sources so they can be copied )
+		if (RImplementation.o.ssfx_core)
+		{
+			rt_scene_aa = createUnique(r2_RT_scene_aa, w, h, rt_Generic_0->fmt);
+			rt_scene_final = createUnique(r2_RT_scene_final, w, h, (RImplementation.o.dx10_msaa ? rt_Generic : rt_Color)->fmt);
+			rt_upscaled_pos = createUnique(r2_RT_upscaled_pos, w, h, D3DFMT_A16B16G16R16F);
+			rt_upscaled_heat = createUnique(r2_RT_upscaled_heat, w, h, D3DFMT_A8R8G8B8);
+		}
 
 		//rt_ssfx_hud = createUnique(r2_RT_ssfx_hud, w, h, D3DFMT_A16B16G16R16F); // Deprecated
 

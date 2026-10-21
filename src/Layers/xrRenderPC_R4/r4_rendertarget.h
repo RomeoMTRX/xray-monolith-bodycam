@@ -231,6 +231,16 @@ public:
 
 	ref_rt rt_ssfx_taa;
 	ref_rt rt_ssfx_prev_frame;
+
+	// SSS24 core pipeline ( created when the SSS core is installed )
+	ref_rt rt_scene_aa; // scene after AA, post effects read and write it
+	ref_rt rt_scene_final; // combine output, read by the final post process
+	ref_rt rt_upscaled_pos; // position for the display resolution passes
+	ref_rt rt_upscaled_heat; // heat for the display resolution passes
+
+	// SSS24: post effects render into post_dest and copy back into post_src
+	ref_rt& ssfx_post_dest();
+	ref_rt& ssfx_post_src();
 	ref_rt rt_ssfx_motion_vectors;
 
 	ref_rt rt_ssfx_prevPos;
@@ -614,7 +624,7 @@ public:
 	void shadow_direct(light* L, u32 dls_phase);
 
 	// SSS Stuff
-	void phase_ssfx_taa();
+	void phase_ssfx_taa(bool to_scene_aa = false);
 	void phase_ssfx_motion_blur();
 	void phase_ssfx_fog_scattering();
 	void phase_ssfx_rain(); // Bloom PP

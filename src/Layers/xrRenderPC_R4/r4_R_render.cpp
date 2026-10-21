@@ -75,6 +75,10 @@ void CRender::render_menu()
 		g_pGamePersistent->OnRenderPPUI_PP(); // PP-UI
 	}
 
+	// SSS24: the menu shader ( distort.s ) reads scene_aa
+	if (o.ssfx_core && Target->rt_scene_aa)
+		HW.pContext->CopyResource(Target->rt_scene_aa->pTexture->surface_get(), Target->rt_Generic_0->pTexture->surface_get());
+
 	// Actual Display
 	Target->u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
 	RCache.set_Shader(Target->s_menu);
