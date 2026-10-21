@@ -42,12 +42,14 @@
 
 #include "Rain.h"
 #include "../Layers/xrRender/svp_console.h"
+#include "sl_latency.h"
 
 #pragma comment( lib, "d3dx9.lib" )
 
 ENGINE_API CRenderDevice Device;
 ENGINE_API CLoadScreenRenderer load_screen_renderer;
 ENGINE_API CRenderDevice* DevicePtr = nullptr;
+ENGINE_API sl_latency::hooks sl_latency::g_hooks;
 
 ENGINE_API xr_atomic_bool g_bRendering = false;
 extern ENGINE_API float psHUD_FOV;
@@ -353,6 +355,10 @@ void CRenderDevice::on_idle()
 
 	PROF_FRAME("Main Thread");
 
+	// SSS24: Streamline frame token for this frame, then the Reflex sleep before the simulation starts
+	sl_latency::new_frame();
+	sl_latency::sleep();
+
 #ifdef DEDICATED_SERVER
     u32 FrameStartTime = TimerGlobal.GetElapsed_ms();
 #endif
@@ -553,6 +559,8 @@ void CRenderDevice::on_idle()
 
 	if (b_is_Active && Begin())
 	{
+		sl_latency::marker(sl_latency::RenderSubmitStart);
+
 		START_PROFILE("Process seqRender");
 		seqRender.Process(rp_Render);
 		STOP_PROFILE;
@@ -628,6 +636,7 @@ void CRenderDevice::message_loop()
 	{
 		if (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
 		{
+			sl_latency::on_message(msg.message); // PC Latency stats ping
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 			continue;
