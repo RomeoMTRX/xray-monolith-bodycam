@@ -17,6 +17,9 @@
 #include "dxRenderDeviceRender.h"
 
 #include "svp_constants.h"
+#if defined(USE_DX11)
+#include "../xrRenderPC_R4/ssfx_upscaler.h"
+#endif
 
 // matrices
 #define	BIND_DECLARE(xf)	\
@@ -1263,6 +1266,13 @@ static class ssfx_jitter : public R_constant_setup
 #if defined(USE_DX11)
 		// the svp is rendered unjittered (svp jitter only under r__svp_dlss), so skip the main jitter
 		// on the svp pass or its gbuffer decode over-corrects a jitter that was never applied
+		// SSS24: DLSS wants a Halton(2,3) jitter of up to one pixel ( SSS ssfx_jitter binder 140bcb830 )
+		if (ssfx_upscaler::active() && !(Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp))
+		{
+			const Fvector2 j = ssfx_upscaler::jitter(Device.dwFrame);
+			RCache.set_c(C, 2.f * j.x / float(Device.dwWidth), 2.f * j.y / float(Device.dwHeight), ps_ssfx_taa.x, ps_ssfx_taa.w);
+			return;
+		}
 		if (ps_ssfx_taa.x > 0 && RImplementation.o.ssfx_taa && !(Device.true_pip_on && Device.m_SecondViewport.m_render_pass_is_svp))
 		{
 			static Fvector2 TAA_Offset[4] =

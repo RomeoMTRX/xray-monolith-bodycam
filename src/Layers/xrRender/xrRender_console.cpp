@@ -499,6 +499,18 @@ Fvector3 ps_ssfx_cascades_resolution = { 1536, 2048, 2560 }; // SSS24: per-casca
 Fvector3 ps_ssfx_cascades_delay = { 0, 1, 2 }; // SSS24: frames to wait between cascade updates
 int ps_r__trees_trunk_alphamask = 0; // SSS24: alpha-test tree trunks too
 int ps_r__trees_branches_cullmode_none = 0; // SSS24: draw both faces of the branches
+
+// SSS24 upscalers ( token values match the SSS exe so its user.ltx lines load as they are )
+u32 ps_ssfx_upscaler = 0; // off / fsr / dlss
+u32 ps_ssfx_upscaler_resolution = 0; // dlaa/nativeaa, quality, balanced, performance, ultra performance
+u32 ps_ssfx_dlss_preset = 0; // DLSS model preset ( sl::DLSSPreset values )
+u32 ps_ssfx_reflex = 0; // off / on / on+boost
+float ps_ssfx_upscaler_sharp = 0.5f; // sharpening after the upscaler ( 0 = off )
+int ps_ssfx_upscaler_automipmap = 1; // texture LOD bias follows the render scale
+xr_token ssfx_upscaler_token[] = { {"off", 0}, {"fsr", 1}, {"dlss", 2}, {0, 0} };
+xr_token ssfx_upscaler_resolution_token[] = { {"dlaa/nativeaa", 0}, {"quality", 2}, {"balanced", 3}, {"performance", 4}, {"ultra performance", 5}, {0, 0} };
+xr_token ssfx_dlss_preset_token[] = { {"default", 0}, {"preset_f", 6}, {"preset_j", 10}, {"preset_k", 11}, {"preset_l", 12}, {"preset_m", 13}, {0, 0} };
+xr_token ssfx_reflex_token[] = { {"off", 0}, {"on", 1}, {"on+boost", 2}, {0, 0} };
 Fvector4 ps_ssfx_grass_shadows = { .0f, .35f, 30.0f, .0f };
 
 Fvector4 ps_ssfx_grass_interactive = { .0f, .0f, 2000.0f, 1.0f };
@@ -1785,6 +1797,12 @@ void xrRender_initconsole()
 	CMD4(CCC_Vector3, "ssfx_cascades_delay", &ps_ssfx_cascades_delay, Fvector3().set(0, 0, 0), Fvector3().set(5, 5, 5));
 	CMD4(CCC_Integer, "trees_trunk_alphamask", &ps_r__trees_trunk_alphamask, 0, 1);
 	CMD4(CCC_Integer, "trees_branches_cullmode_none", &ps_r__trees_branches_cullmode_none, 0, 1);
+	CMD3(CCC_Token, "ssfx_upscaler", &ps_ssfx_upscaler, ssfx_upscaler_token);
+	CMD3(CCC_Token, "ssfx_upscaler_resolution", &ps_ssfx_upscaler_resolution, ssfx_upscaler_resolution_token);
+	CMD3(CCC_Token, "ssfx_dlss_preset", &ps_ssfx_dlss_preset, ssfx_dlss_preset_token);
+	CMD3(CCC_Token, "ssfx_reflex", &ps_ssfx_reflex, ssfx_reflex_token);
+	CMD4(CCC_Float, "ssfx_upscaler_sharp", &ps_ssfx_upscaler_sharp, 0.f, 2.f);
+	CMD4(CCC_Integer, "ssfx_upscaler_automipmap", &ps_ssfx_upscaler_automipmap, 0, 1);
 
 	CMD4(CCC_Vector4, "ssfx_grass_interactive", &ps_ssfx_grass_interactive, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 15, 5000, 1));
 	CMD4(CCC_Vector4, "ssfx_int_grass_params_1", &ps_ssfx_int_grass_params_1, Fvector4().set(0, 0, 0, 0), Fvector4().set(5, 5, 5, 60));
