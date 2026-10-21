@@ -7,11 +7,15 @@
 // resolved from sl.interposer.dll with GetProcAddress
 #include "../../3rd party/streamline/include/sl.h"
 #include "../../3rd party/streamline/include/sl_dlss.h"
+#include "../../3rd party/streamline/include/sl_reflex.h"
+#include "../../xrEngine/sl_latency.h"
 
 // SSS24 upscalers: NVIDIA DLSS ( Streamline ), reconstructed from the SSS24 RC2 exe
 // ( Streamline init 140a87770, options 140a769d0, evaluate 140a76af0, jitter table at Device+0x64 ).
 // First step: DLSS runs at the native resolution ( DLAA ) in place of the TAA, the render/display split
 // for the quality modes comes later, so every resolution token is treated as DLAA for now.
+// Reflex / PC Latency ( SSS 140a766a0, 140a66620, markers in CRenderDevice::on_idle 140031320 and
+// CLevel::OnFrame 1401a5630 ): the engine calls the sl_latency hooks, installed here once Streamline is up.
 
 namespace ssfx_upscaler
 {
@@ -20,6 +24,7 @@ namespace
 	HMODULE s_sl_module = nullptr;
 	bool s_sl_ready = false; // slInit + slSetD3DDevice done
 	bool s_dlss_ok = false; // DLSS supported on this adapter
+	bool s_reflex_ok = false; // Reflex low latency available
 
 	PFun_slInit* p_slInit = nullptr;
 	PFun_slShutdown* p_slShutdown = nullptr;
@@ -31,10 +36,14 @@ namespace
 	PFun_slSetTagForFrame* p_slSetTagForFrame = nullptr;
 	PFun_slEvaluateFeature* p_slEvaluateFeature = nullptr;
 	PFun_slDLSSSetOptions* p_slDLSSSetOptions = nullptr;
+	PFun_slReflexGetState* p_slReflexGetState = nullptr;
+	PFun_slReflexSetOptions* p_slReflexSetOptions = nullptr;
+	PFun_slReflexSleep* p_slReflexSleep = nullptr;
+	PFun_slPCLSetMarker* p_slPCLSetMarker = nullptr;
 
-	sl::FrameToken* s_frame = nullptr;
-	u32 s_frame_index = u32(-1);
+	sl::FrameToken* s_frame = nullptr; // this frame's token ( sl_latency::new_frame at the start of on_idle )
 	const sl::ViewportHandle s_viewport(0u);
+	u32 s_reflex_mode = u32(-1); // last ssfx_reflex value handed to Streamline
 
 	// last options handed to DLSS, re-sent when any of them changes
 	struct AppliedOptions
@@ -130,6 +139,100 @@ namespace
 	{
 		// the render/display split is not in yet, every quality runs at the native resolution
 		return sl::DLSSMode::eDLAA;
+	}
+
+	template <typename T>
+	bool feature_function(sl::Feature feature, LPCSTR name, T*& fn)
+	{
+		void* p = nullptr;
+		fn = (p_slGetFeatureFunction(feature, name, p) == sl::Result::eOk) ? reinterpret_cast<T*>(p) : nullptr;
+		return fn != nullptr;
+	}
+
+	void apply_reflex(bool force)
+	{
+		if (!s_reflex_ok || !p_slReflexSetOptions)
+			return;
+		const u32 mode = ps_ssfx_reflex;
+		if (!force && mode == s_reflex_mode)
+			return;
+		s_reflex_mode = mode;
+
+		sl::ReflexOptions options{};
+		options.mode = mode == 2 ? sl::ReflexMode::eLowLatencyWithBoost : (mode == 1 ? sl::ReflexMode::eLowLatency : sl::ReflexMode::eOff);
+		options.frameLimitUs = 0;
+		options.useMarkersToOptimize = true;
+		const sl::Result res = p_slReflexSetOptions(options);
+		if (res != sl::Result::eOk)
+			Msg("! NV Streamline : Unable to set the Reflex option [ %s ]", result_name(res));
+		else
+			Msg("- NV Streamline : Reflex set to [ %s ].", mode == 2 ? "ON+BOOST" : (mode == 1 ? "ON" : "OFF"));
+	}
+
+	// sl_latency hooks, main thread
+	void hook_new_frame()
+	{
+		sl::FrameToken* token = nullptr;
+		s_frame = (p_slGetNewFrameToken(token, nullptr) == sl::Result::eOk) ? token : nullptr;
+		if (sl_latency::g_hooks.ping_pending)
+		{
+			sl_latency::g_hooks.ping_pending = false;
+			if (s_frame && p_slPCLSetMarker)
+				p_slPCLSetMarker(sl::PCLMarker::ePCLatencyPing, *s_frame);
+		}
+	}
+
+	void hook_marker(u32 marker)
+	{
+		if (s_frame && p_slPCLSetMarker)
+			p_slPCLSetMarker(sl::PCLMarker(marker), *s_frame);
+	}
+
+	void hook_sleep()
+	{
+		if (s_reflex_ok && s_frame && p_slReflexSleep)
+			p_slReflexSleep(*s_frame);
+	}
+
+	void init_reflex(const sl::AdapterInfo* adapter)
+	{
+		feature_function(sl::kFeaturePCL, "slPCLSetMarker", p_slPCLSetMarker);
+
+		if (adapter)
+		{
+			const sl::Result res = p_slIsFeatureSupported(sl::kFeatureReflex, *adapter);
+			if (res != sl::Result::eOk)
+			{
+				Msg("! NV Streamline : Reflex is not supported [ %s ]", result_name(res));
+				return;
+			}
+		}
+
+		bool ok = feature_function(sl::kFeatureReflex, "slReflexGetState", p_slReflexGetState);
+		ok &= feature_function(sl::kFeatureReflex, "slReflexSetOptions", p_slReflexSetOptions);
+		ok &= feature_function(sl::kFeatureReflex, "slReflexSleep", p_slReflexSleep);
+		if (!ok)
+		{
+			Msg("! NV Streamline : Reflex functions missing.");
+			return;
+		}
+
+		sl::ReflexState* state = xr_new<sl::ReflexState>();
+		const sl::Result res = p_slReflexGetState(*state);
+		if (res != sl::Result::eOk)
+			Msg("! NV Streamline : Reflex can't get the current state [ %s ]", result_name(res));
+		else
+		{
+			s_reflex_ok = state->lowLatencyAvailable;
+			sl_latency::g_hooks.stats_message = state->statsWindowMessage;
+		}
+		xr_delete(state);
+
+		if (s_reflex_ok)
+		{
+			Msg("- NV Streamline : Reflex low Latency available.");
+			apply_reflex(true);
+		}
 	}
 
 	void apply_options(bool force)
@@ -238,12 +341,24 @@ void init()
 	}
 	s_sl_ready = true;
 
+	// the engine marks the frame from now on ( frame token, Reflex sleep, PC Latency markers )
+	sl_latency::g_hooks.new_frame = &hook_new_frame;
+	sl_latency::g_hooks.marker = &hook_marker;
+	sl_latency::g_hooks.sleep = &hook_sleep;
+
 	DXGI_ADAPTER_DESC desc{};
-	if (HW.m_pAdapter && SUCCEEDED(HW.m_pAdapter->GetDesc(&desc)))
+	sl::AdapterInfo adapter{};
+	const bool have_adapter = HW.m_pAdapter && SUCCEEDED(HW.m_pAdapter->GetDesc(&desc));
+	if (have_adapter)
 	{
-		sl::AdapterInfo adapter{};
 		adapter.deviceLUID = reinterpret_cast<uint8_t*>(&desc.AdapterLuid);
 		adapter.deviceLUIDSizeInBytes = sizeof(LUID);
+	}
+
+	init_reflex(have_adapter ? &adapter : nullptr);
+
+	if (have_adapter)
+	{
 		res = p_slIsFeatureSupported(sl::kFeatureDLSS, adapter);
 		if (res != sl::Result::eOk)
 		{
@@ -252,9 +367,7 @@ void init()
 		}
 	}
 
-	void* fn = nullptr;
-	if (p_slGetFeatureFunction(sl::kFeatureDLSS, "slDLSSSetOptions", fn) == sl::Result::eOk && fn)
-		p_slDLSSSetOptions = reinterpret_cast<PFun_slDLSSSetOptions*>(fn);
+	feature_function(sl::kFeatureDLSS, "slDLSSSetOptions", p_slDLSSSetOptions);
 
 	s_dlss_ok = p_slDLSSSetOptions != nullptr;
 	if (s_dlss_ok)
@@ -268,6 +381,13 @@ void shutdown()
 {
 	if (!s_sl_module)
 		return;
+
+	sl_latency::g_hooks.new_frame = nullptr;
+	sl_latency::g_hooks.marker = nullptr;
+	sl_latency::g_hooks.sleep = nullptr;
+	sl_latency::g_hooks.stats_message = 0;
+	sl_latency::g_hooks.ping_pending = false;
+
 	if (s_sl_ready && p_slShutdown)
 	{
 		const sl::Result res = p_slShutdown();
@@ -278,9 +398,14 @@ void shutdown()
 	}
 	s_sl_ready = false;
 	s_dlss_ok = false;
+	s_reflex_ok = false;
 	p_slDLSSSetOptions = nullptr;
+	p_slReflexGetState = nullptr;
+	p_slReflexSetOptions = nullptr;
+	p_slReflexSleep = nullptr;
+	p_slPCLSetMarker = nullptr;
 	s_frame = nullptr;
-	s_frame_index = u32(-1);
+	s_reflex_mode = u32(-1);
 	s_applied = AppliedOptions();
 	FreeLibrary(s_sl_module);
 	s_sl_module = nullptr;
@@ -308,18 +433,14 @@ Fvector2 jitter(u32 frame)
 
 void begin_frame()
 {
-	if (!s_sl_ready || !active())
+	if (!s_sl_ready)
 		return;
-	if (s_frame_index == Device.dwFrame && s_frame)
-		return;
+	if (!s_frame)
+		hook_new_frame(); // the engine hook has not run yet
 
-	s_frame_index = Device.dwFrame;
-	s_frame = nullptr;
-	const sl::Result res = p_slGetNewFrameToken(s_frame, &s_frame_index);
-	if (res != sl::Result::eOk)
-		s_frame = nullptr;
-
-	apply_options(false);
+	apply_reflex(false);
+	if (active())
+		apply_options(false);
 }
 
 bool evaluate(CRenderTarget* T)
