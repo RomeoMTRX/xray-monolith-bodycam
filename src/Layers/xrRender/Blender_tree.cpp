@@ -213,6 +213,14 @@ void CBlender_Tree::Compile(CBlender_Compile& C)
 
 	bool bUseATOC = (oBlend.value && (RImplementation.o.dx10_msaa_alphatest == CRender::MSAA_ATEST_DX10_0_ATOC));
 
+	// SSS24: trees_trunk_alphamask alpha-tests every tree part ( trunks too ), trees_branches_cullmode_none draws both branch faces
+	BOOL tree_aref = oBlend.value;
+	bool tree_branch = false;
+#if defined(USE_DX11)
+	if (ps_r__trees_trunk_alphamask)
+		tree_aref = TRUE;
+#endif
+
 	switch (C.iElement)
 	{
 	case SE_R2_NORMAL_HQ: // deffer
@@ -223,6 +231,7 @@ void CBlender_Tree::Compile(CBlender_Compile& C)
 		{
 			tvs = "tree_branch";
 			tps = "tree_branch";
+			tree_branch = true;
 		}
 #endif
 
@@ -231,7 +240,7 @@ void CBlender_Tree::Compile(CBlender_Compile& C)
 			string256 tps_atoc;
 			strconcat(sizeof(tps_atoc), tps_atoc, tvs, "_atoc");
 
-			uber_deffer(C, true, tvs, tps_atoc, oBlend.value, 0, true);
+			uber_deffer(C, true, tvs, tps_atoc, tree_aref, 0, true);
 			C.r_Stencil(TRUE, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
 			C.r_ColorWriteEnable(false, false, false, false);
 			C.r_StencilRef(0x01);
@@ -240,12 +249,17 @@ void CBlender_Tree::Compile(CBlender_Compile& C)
 			C.r_End();
 		}
 
-		uber_deffer(C, true, tvs, tps, oBlend.value, 0, true);
+		uber_deffer(C, true, tvs, tps, tree_aref, 0, true);
 		C.r_Stencil(TRUE, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
 		C.r_StencilRef(0x01);
 
 		C.r_dx10Texture("s_waves", "fx\\wind_wave");
 		C.r_dx10Sampler("smp_linear2");
+
+#if defined(USE_DX11)
+		if (tree_branch && ps_r__trees_branches_cullmode_none)
+			C.r_CullMode(D3DCULL_NONE);
+#endif
 
 		//C.PassSET_ZB		(true,false);
 		//	Need only for ATOC to emulate stencil test
@@ -266,7 +280,7 @@ void CBlender_Tree::Compile(CBlender_Compile& C)
 			C.r_End();
 		}
 
-		uber_deffer(C, false, tvs, "base", oBlend.value, 0, true);
+		uber_deffer(C, false, tvs, "base", tree_aref, 0, true);
 		C.r_Stencil(TRUE, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
 		C.r_StencilRef(0x01);
 

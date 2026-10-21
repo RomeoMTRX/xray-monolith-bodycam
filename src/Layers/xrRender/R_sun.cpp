@@ -115,6 +115,17 @@ void CRender::render_sun_cascade(u32 cascade_ind)
 	light* fuckingsun = (light*)Lights.sun_adapted._get();
 	sun::cascade& cascade = m_sun_cascades[cascade_ind];
 
+	// SSS24: with the SSS core each cascade owns a shadow map ( own size, own update delay )
+	u32 cascade_smap_size = o.smapsize;
+#if RENDER == R_R4
+	CRenderTarget* smap_owner = TargetMain ? TargetMain : Target;
+	const bool cascade_own_smap = o.ssfx_core && cascade_ind < 3 && smap_owner->rt_sun_smap_depth[cascade_ind];
+	if (cascade_own_smap)
+		cascade_smap_size = smap_owner->rt_sun_smap_depth[cascade_ind]->dwWidth;
+#else
+	const bool cascade_own_smap = false;
+#endif
+
 	CFrustum& cull_frustum = cascade.cull_frustum;
 	xr_vector<Fplane> cull_planes;
 	Fvector3& cull_COP = cascade.cull_COP;
@@ -203,7 +214,7 @@ void CRender::render_sun_cascade(u32 cascade_ind)
 																map_size * 0.5f, 0.1, dist + map_size);
 
 			// build viewport xform
-			float view_dim = float(o.smapsize);
+			float view_dim = float(cascade_smap_size); // SSS24: snap to the cascade's own shadow map
 			Fmatrix m_viewport = {
 				view_dim / 2.f, 0.0f, 0.0f, 0.0f,
 				0.0f, -view_dim / 2.f, 0.0f, 0.0f,
@@ -303,7 +314,7 @@ void CRender::render_sun_cascade(u32 cascade_ind)
 
 			cascade.xform = cull_xform;
 
-			s32 limit = o.smapsize - 1;
+			s32 limit = cascade_smap_size - 1;
 			fuckingsun->X.D.minX = 0;
 			fuckingsun->X.D.maxX = limit;
 			fuckingsun->X.D.minY = 0;
@@ -314,10 +325,26 @@ void CRender::render_sun_cascade(u32 cascade_ind)
 		}
 	}
 
+	// SSS24: a cascade that is not due this frame ( ssfx_cascades_delay ) keeps its shadow map and the
+	// combine it was rendered with, so the traverse and the shadow map render are skipped
+	bool cascade_update = true;
+#if RENDER == R_R4
+	if (cascade_own_smap)
+	{
+		cascade_update = m_sun_cascade_next_frame[cascade_ind] < Device.dwFrame;
+		if (cascade_update)
+		{
+			m_sun_cascade_next_frame[cascade_ind] = Device.dwFrame + u32(_max(ps_ssfx_cascades_delay[cascade_ind], 0.f));
+			m_sun_cascade_combine[cascade_ind] = cull_xform;
+		}
+	}
+#endif
+
 	// Begin SMAP-render
+    phase = PHASE_SMAP;
+    if (cascade_update)
     {
         PROF_EVENT("Render Cascade: SMAP traverse");
-        phase = PHASE_SMAP;
         // pip cpu cost of this cascade's traverse plus capture, read by the fps audit overlay
         const bool timed = ps_r__svp_stats != 0 && cascade_ind < 3;
         CTimer capture_timer;
@@ -335,16 +362,21 @@ void CRender::render_sun_cascade(u32 cascade_ind)
         PROF_EVENT("Render Cascade: SMAP Finalize");
 
         fuckingsun->X.D.combine = cull_xform;
+#if RENDER == R_R4
+        if (cascade_own_smap)
+            fuckingsun->X.D.combine = m_sun_cascade_combine[cascade_ind];
+#endif
 
         // Render shadow-map
         //. !!! We should clip based on shrinked frustum (again)
+        if (cascade_update)
         {
             bool bDeffered_Shadows = cascade.GMCascade.RGraph.mapStaticPasses[0][0].size() || cascade.GMCascade.RGraph.mapDynamicPasses[0][0].size();
             bool bForward_Shadows = cascade.GMCascade.RGraph.mapStaticPasses[1][0].size() || cascade.GMCascade.RGraph.mapDynamicPasses[1][0].size() || cascade.GMCascade.RGraph.mapStaticSorted.Sorted.size() || cascade.GMCascade.RGraph.mapDynamicSorted.Sorted.size();
             if (bDeffered_Shadows || bForward_Shadows)
             {
                 sun_sub_begin(SUN_SUB_SMAP);
-                Target->phase_smap_direct(fuckingsun, SE_SUN_FAR);
+                Target->phase_smap_direct(fuckingsun, cascade_own_smap ? cascade_ind : SE_SUN_FAR); // SSS24: per-cascade map
                 RCache.set_xform_world(Fidentity);
                 RCache.set_xform_view(Fidentity);
                 RCache.set_xform_project(fuckingsun->X.D.combine);
@@ -376,6 +408,11 @@ void CRender::render_sun_cascade(u32 cascade_ind)
                     cascade.GMCascade.r_dsgraph_render_sorted();			// strict-sorted geoms
                 }
             }
+            else if (cascade_own_smap)
+            {
+                // SSS24: nothing casts into this cascade, clear its own map so an old frame does not linger
+                Target->phase_smap_direct(fuckingsun, cascade_ind);
+            }
         }
 
         // End SMAP-render
@@ -397,6 +434,11 @@ void CRender::render_sun_cascade(u32 cascade_ind)
 				&& (ps_sunshafts_mode == R2SS_VOLUMETRIC || ps_sunshafts_mode == R2SS_COMBINE_SUNSHAFTS)
 				&& Target->use_minmax_sm_this_frame());
 	}
+#if RENDER == R_R4
+	// SSS24: the min/max map is always built from the near cascade's own map, the other cascades would only rebuild it
+	if (cascade_own_smap)
+		need_minmax_sm = (cascade_ind == 0) && Target->use_minmax_sm_this_frame();
+#endif
 	if (need_minmax_sm)
 	{
 		sun_sub_begin(SUN_SUB_MINMAX);

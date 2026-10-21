@@ -495,6 +495,10 @@ Fvector4 ps_ssfx_rain_3 = { 0.5f, 1.0f, 0.0f, 0.0f }; // Alpha, Refraction ( Spl
 Fvector4 ps_ssfx_rain_drops_setup = { 2500, 15, 0.0f, 0.0f };
 
 Fvector3 ps_ssfx_shadow_cascades = { 20, 40, 160 };
+Fvector3 ps_ssfx_cascades_resolution = { 1536, 2048, 2560 }; // SSS24: per-cascade sun shadow map size ( 0 = r2_smap_size )
+Fvector3 ps_ssfx_cascades_delay = { 0, 1, 2 }; // SSS24: frames to wait between cascade updates
+int ps_r__trees_trunk_alphamask = 0; // SSS24: alpha-test tree trunks too
+int ps_r__trees_branches_cullmode_none = 0; // SSS24: draw both faces of the branches
 Fvector4 ps_ssfx_grass_shadows = { .0f, .35f, 30.0f, .0f };
 
 Fvector4 ps_ssfx_grass_interactive = { .0f, .0f, 2000.0f, 1.0f };
@@ -1777,6 +1781,10 @@ void xrRender_initconsole()
 
 	CMD4(CCC_Vector4, "ssfx_grass_shadows", &ps_ssfx_grass_shadows, Fvector4().set(0, 0, 0, 0), Fvector4().set(3, 1, 100, 100));
 	CMD4(CCC_ssfx_cascades, "ssfx_shadow_cascades", &ps_ssfx_shadow_cascades, Fvector3().set(1.0f, 1.0f, 1.0f), Fvector3().set(300, 300, 300));
+	CMD4(CCC_Vector3, "ssfx_cascades_resolution", &ps_ssfx_cascades_resolution, Fvector3().set(0, 0, 0), Fvector3().set(4096, 4096, 4096));
+	CMD4(CCC_Vector3, "ssfx_cascades_delay", &ps_ssfx_cascades_delay, Fvector3().set(0, 0, 0), Fvector3().set(5, 5, 5));
+	CMD4(CCC_Integer, "trees_trunk_alphamask", &ps_r__trees_trunk_alphamask, 0, 1);
+	CMD4(CCC_Integer, "trees_branches_cullmode_none", &ps_r__trees_branches_cullmode_none, 0, 1);
 
 	CMD4(CCC_Vector4, "ssfx_grass_interactive", &ps_ssfx_grass_interactive, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 15, 5000, 1));
 	CMD4(CCC_Vector4, "ssfx_int_grass_params_1", &ps_ssfx_int_grass_params_1, Fvector4().set(0, 0, 0, 0), Fvector4().set(5, 5, 5, 60));
