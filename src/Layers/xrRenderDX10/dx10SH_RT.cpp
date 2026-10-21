@@ -39,6 +39,11 @@ void CRT::create(LPCSTR Name, u32 w, u32 h, D3DFORMAT f, u32 SampleCount)
 	if (pSurface) return;
 
 	R_ASSERT(HW.pDevice && Name && Name[0] && w && h);
+
+	// SSS24: SampleCount == u32(-1) requests a single-sample RT with a full mip chain (auto-generated mips)
+	const bool bMipChain = (SampleCount == u32(-1));
+	if (bMipChain)
+		SampleCount = 1;
 	_order = CPU::GetCLK(); //Device.GetTimerGlobal()->GetElapsed_clk();
 
 	//HRESULT		_hr;
@@ -114,10 +119,12 @@ void CRT::create(LPCSTR Name, u32 w, u32 h, D3DFORMAT f, u32 SampleCount)
 	ZeroMemory(&desc, sizeof(desc));
 	desc.Width = dwWidth;
 	desc.Height = dwHeight;
-	desc.MipLevels = 1;
+	desc.MipLevels = bMipChain ? 0 : 1;
 	desc.ArraySize = 1;
 	desc.Format = dx10FMT;
 	desc.SampleDesc.Count = SampleCount;
+	if (bMipChain && !bUseAsDepth)
+		desc.MiscFlags |= D3D_RESOURCE_MISC_GENERATE_MIPS;
 	desc.Usage = D3D_USAGE_DEFAULT;
 	if (SampleCount <= 1)
 		desc.BindFlags = D3D_BIND_SHADER_RESOURCE | (bUseAsDepth ? D3D_BIND_DEPTH_STENCIL : D3D_BIND_RENDER_TARGET);
