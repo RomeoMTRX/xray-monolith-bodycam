@@ -818,6 +818,7 @@
     <ClCompile Include="svp_optics.cpp" />
     <ClCompile Include="svp_lens_constants.cpp" />
     <ClCompile Include="svp_upscaler.cpp" />
+    <ClCompile Include="ssfx_upscaler.cpp" />
     <ClCompile Include="svp_report.cpp" />
     <ClCompile Include="svp_reflex.cpp" />
     <ClCompile Include="svp_objective_hud.cpp" />

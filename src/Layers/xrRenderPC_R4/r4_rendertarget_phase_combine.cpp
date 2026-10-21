@@ -6,6 +6,7 @@
 #include "../xrRender/dxEnvironmentRender.h"
 #include "svp_lens_lighting.h"
 #include "svp_stats.h" // pip combine sub timers for the breakdown panel
+#include "ssfx_upscaler.h"
 #include "../xrRender/SkeletonX.h"
 
 #define STENCIL_CULL 0
@@ -783,8 +784,21 @@ void CRenderTarget::phase_combine()
 	if (ssfx_core_path)
 	{
 		PIX_EVENT(SSFX_CORE_AA);
+		// SSS24: DLSS replaces the TAA on the main view ( the SVP keeps its own TAA )
+		bool upscaled = false;
+		if (!svp_pass_core && this == RImplementation.TargetMain && ssfx_upscaler::active())
+		{
+			PIX_EVENT(SSFX_DLSS);
+			upscaled = ssfx_upscaler::evaluate(this);
+			if (upscaled)
+				phase_ssfx_upscaler_sharp();
+		}
+
 		// the SVP pass already ran its TAA ( early, into rt_Generic_0 )
-		if (!svp_pass_core && RImplementation.o.ssfx_taa && ps_ssfx_taa.x > 0)
+		if (upscaled)
+		{
+		}
+		else if (!svp_pass_core && RImplementation.o.ssfx_taa && ps_ssfx_taa.x > 0)
 		{
 			tm_beg(svp_stats::SEC_C_TAA);
 			phase_ssfx_taa(true);

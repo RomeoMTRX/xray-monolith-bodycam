@@ -14,6 +14,7 @@
 #include "svp_stats.h" // pip render-stats overlay, query pool release on reset/destroy
 #include "svp_lens_lighting.h"
 #include "r4_shader_warmup.h" // pip/3DSS scope shaders compiled ahead while the level loads
+#include "ssfx_upscaler.h" // SSS24 DLSS ( Streamline )
 
 #include "../xrRenderDX10/3DFluid/dx103DFluidManager.h"
 #include "../xrRender/ShaderResourceTraits.h"
@@ -567,10 +568,14 @@ void CRender::create()
 	FluidManager.SetScreenSize(Device.dwWidth, Device.dwHeight);
 
 	Device.ModelDefferClear = xr_make_delegate(Models, &CModelPool::DeleteQueuedDeffer);
+
+	// SSS24: NVIDIA Streamline ( DLSS ), only with the SSS core shaders
+	ssfx_upscaler::init();
 }
 
 void CRender::destroy()
 {
+	ssfx_upscaler::shutdown();
 	m_bMakeAsyncSS = false;
 	FluidManager.Destroy();
 	GMBase.destroy();
@@ -610,6 +615,7 @@ void CRender::reset_end()
 
 	Target = xr_new<CRenderTarget>();
 	TargetMain = Target;
+	ssfx_upscaler::reset(); // SSS24: DLSS output size follows the new targets
 
 	//AVO: let's reload details while changed details options on vid_restart
 	if (b_loaded && ((dm_current_size != dm_size) || (ps_r__Detail_density != ps_current_detail_density) || (

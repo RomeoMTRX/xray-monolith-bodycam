@@ -109,5 +109,18 @@ void CBlender_ssfx_taa::Compile(CBlender_Compile& C)
 
 		C.r_End();
 		break;
+
+	case 3: // SSS24: sharpening after the upscaler ( reads the upscaled scene_aa )
+		C.r_Pass("stub_screen_space", "ssfx_taa_sharp", FALSE, FALSE, FALSE);
+		C.r_dx10Texture("s_current", "$user$upscaler_tmp");
+		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
+
+		C.r_dx10Sampler("smp_point");
+		C.r_dx10Sampler("smp_linear");
+		C.r_dx10Sampler("smp_rtlinear");
+		C.r_dx10Sampler("smp_nofilter");
+
+		C.r_End();
+		break;
 	}
 }

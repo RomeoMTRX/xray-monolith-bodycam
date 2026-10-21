@@ -240,6 +240,9 @@ public:
 	ref_rt rt_scene_final; // combine output, read by the final post process
 	ref_rt rt_upscaled_pos; // position for the display resolution passes
 	ref_rt rt_upscaled_heat; // heat for the display resolution passes
+	ref_rt rt_dlss_depth; // SSS24: scene depth copy DLSS can read ( main target only )
+	ref_rt rt_upscaler_tmp; // SSS24: copy of the upscaled image for the sharpening pass
+	void phase_ssfx_upscaler_sharp(); // SSS24: sharpening after the upscaler
 
 	// SSS24: post effects render into post_dest and copy back into post_src
 	ref_rt& ssfx_post_dest();

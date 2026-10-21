@@ -795,10 +795,16 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 		// SSS24 core pipeline targets ( same formats as their sources so they can be copied )
 		if (RImplementation.o.ssfx_core)
 		{
-			rt_scene_aa = createUnique(r2_RT_scene_aa, w, h, rt_Generic_0->fmt);
+			// UAV so DLSS can write the upscaled image straight into it
+			rt_scene_aa = createUnique(r2_RT_scene_aa, w, h, rt_Generic_0->fmt, 1, isMain);
 			rt_scene_final = createUnique(r2_RT_scene_final, w, h, (RImplementation.o.dx10_msaa ? rt_Generic : rt_Color)->fmt);
 			rt_upscaled_pos = createUnique(r2_RT_upscaled_pos, w, h, D3DFMT_A16B16G16R16F);
 			rt_upscaled_heat = createUnique(r2_RT_upscaled_heat, w, h, D3DFMT_A8R8G8B8);
+			if (isMain)
+			{
+				rt_dlss_depth = createUnique("$user$dlss_depth", w, h, D3DFMT_D24S8);
+				rt_upscaler_tmp = createUnique("$user$upscaler_tmp", w, h, rt_Generic_0->fmt);
+			}
 		}
 
 		//rt_ssfx_hud = createUnique(r2_RT_ssfx_hud, w, h, D3DFMT_A16B16G16R16F); // Deprecated

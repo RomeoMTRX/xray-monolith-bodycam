@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "ssfx_upscaler.h"
 #include "../../xrEngine/peak_volumetric_debug.h"
 #include "../../xrEngine/igame_persistent.h"
 #include "../xrRender/FBasicVisual.h"
@@ -161,6 +162,8 @@ void CRender::Render()
 	if(ps_pfx_volumetric_debug){g_peak_volumetric_debug.Begin(Device.dwFrame);g_peak_volumetric_debug.dx11Seen=true;}
 	PIX_EVENT_C(CRender_Render, dx10_marker_frame);
 	dx10_annotate_frame();
+
+	ssfx_upscaler::begin_frame(); // SSS24: Streamline frame token for DLSS
 
 	rmNormal();
 
