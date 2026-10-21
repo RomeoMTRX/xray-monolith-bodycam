@@ -38,6 +38,7 @@
 #include "trade_parameters.h"
 #include "game_cl_base_weapon_usage_statistic.h"
 #include "MainMenu.h"
+#include "xrEngine/sl_latency.h"
 #include "xrEngine/XR_IOConsole.h"
 #include "actor.h"
 #include "player_hud.h"
@@ -987,6 +988,9 @@ BOOL mt_TaskManager = FALSE;
 void CLevel::OnFrame()
 {
 	PROF_EVENT("CLevel::OnFrame()");
+
+	// SSS24: Reflex / PC Latency simulation markers ( SSS CLevel::OnFrame 1401a5630 )
+	sl_latency::simulation_scope sl_simulation;
 
     // demonized: update wallmarks before rendering
     ::Render->update_Wallmarks();
