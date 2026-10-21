@@ -594,6 +594,13 @@ void CRenderTarget::accum_direct_cascade(u32 sub_phase, Fmatrix& xform, Fmatrix&
 		RCache.set_c("m_sunmask", m_clouds_shadow);
 		// SSS24: cascade index + 1 ( near 1, middle 2, far 3 ), used for the cascade bias
 		RCache.set_c("m_cascade_id", float(sub_phase == SE_SUN_NEAR ? 1 : (sub_phase == SE_SUN_MIDDLE ? 2 : 3)), 0.0f, 0.0f, 0.0f);
+		// SSS24: the shadow filter works in texels of the cascade's own shadow map
+		if (RImplementation.o.ssfx_core && sub_phase < 3)
+		{
+			CRenderTarget* smap_owner = RImplementation.TargetMain ? RImplementation.TargetMain : this;
+			if (smap_owner->rt_sun_smap_depth[sub_phase])
+				RCache.set_c("m_SMAP_res", float(smap_owner->rt_sun_smap_depth[sub_phase]->dwWidth), 0.0f, 0.0f, 0.0f);
+		}
 
 		if (sub_phase == SE_SUN_FAR)
 		{
@@ -1226,8 +1233,12 @@ void CRenderTarget::accum_direct_volumetric(u32 sub_phase, const u32 Offset, con
 
 	ref_selement Element = s_accum_direct_volumetric->E[0];
 
+	// SSS24: per-cascade sun shadow maps, the min/max map only matches the near cascade
+	CRenderTarget* smap_owner = RImplementation.TargetMain ? RImplementation.TargetMain : this;
+	const bool cascade_smaps = RImplementation.o.ssfx_core && sub_phase < 3 && smap_owner->rt_sun_smap_depth[sub_phase];
+
 	//if ( (sub_phase==SE_SUN_NEAR) && use_minmax_sm_this_frame())
-	if (use_minmax_sm_this_frame())
+	if (use_minmax_sm_this_frame() && (!cascade_smaps || sub_phase == SE_SUN_NEAR))
 		Element = s_accum_direct_volumetric_minmax->E[0];
 
 	//	Assume everything was recalculated before this call by accum_direct
@@ -1235,19 +1246,18 @@ void CRenderTarget::accum_direct_volumetric(u32 sub_phase, const u32 Offset, con
 	//	Set correct depth surface
 	//	It's slow. Make this when shader is created
 	{
-		// minmax and non-minmax pick a different Element, cache both by identity
+		// minmax and non-minmax pick a different Element, cache both by identity ( and by the cascade map )
 		static ref_selement resolved_for = nullptr;
-		if (!ps_r__light_lean || resolved_for != Element)
+		static LPCSTR resolved_name = nullptr;
+		static LPCSTR cascade_names[3] = { r2_RT_sun_smap_depth0, r2_RT_sun_smap_depth1, r2_RT_sun_smap_depth2 };
+		LPCSTR wanted_name = r2_RT_smap_depth;
+		if (!RImplementation.o.HW_smap)
+			wanted_name = r2_RT_smap_surf;
+		else if (cascade_smaps)
+			wanted_name = cascade_names[sub_phase];
+		if (!ps_r__light_lean || resolved_for != Element || resolved_name != wanted_name)
 		{
-			char* pszSMapName;
-			BOOL b_HW_smap = RImplementation.o.HW_smap;
-			BOOL b_HW_PCF = RImplementation.o.HW_smap_PCF;
-			if (b_HW_smap)
-			{
-				if (b_HW_PCF) pszSMapName = r2_RT_smap_depth;
-				else pszSMapName = r2_RT_smap_depth;
-			}
-			else pszSMapName = r2_RT_smap_surf;
+			LPCSTR pszSMapName = wanted_name;
 			//s_smap
 			STextureList* _T = &*Element->passes[0]->T;
 
@@ -1265,7 +1275,10 @@ void CRenderTarget::accum_direct_volumetric(u32 sub_phase, const u32 Offset, con
 				}
 			}
 			if (ps_r__light_lean)
+			{
 				resolved_for = Element;
+				resolved_name = wanted_name;
+			}
 		}
 	}
 

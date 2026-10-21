@@ -189,6 +189,7 @@ public:
 	ref_rt rt_smap_surf; // 32bit,		color
 	ref_rt rt_smap_depth; // 24(32) bit,	depth
 	ref_rt rt_smap_depth_minmax; //	is used for min/max sm
+	ref_rt rt_sun_smap_depth[3]; // SSS24: one sun shadow map per cascade ( SSS core only, the svp reads the main's )
 	//	TODO: DX10: CHeck if we need old-style SMAP
 	//	IDirect3DSurface9*			rt_smap_ZB;		//
 
@@ -203,6 +204,8 @@ public:
 	ref_rt rt_ssfx_ssr;
 	ref_rt rt_ssfx_water;
 	ref_rt rt_ssfx_water_waves;
+	ref_rt rt_ssfx_water_waves_tmp; // SSS24: waves height field ( the water_waves normals are built from it )
+	ref_rt rt_ssfx_rain_ripples; // SSS24: rain ripples ( mip chain )
 	ref_rt rt_ssfx_ao;
 	ref_rt rt_ssfx_il;
 
@@ -636,6 +639,8 @@ public:
 	void phase_ssfx_volumetric_blur(); // Volumetric Blur
 	void phase_ssfx_water_blur(); // Water Blur
 	void phase_ssfx_water_waves(); // Water Waves
+	void phase_ssfx_water_waves_sss24(); // SSS24: Water Waves ( height field + normals, mip chain )
+	void phase_ssfx_rain_ripples(); // SSS24: Rain ripples for the water
 	void phase_ssfx_ao(); // AO
 	void phase_ssfx_il(); // IL
 	void set_viewport_size(ID3DDeviceContext* dev, float w, float h);

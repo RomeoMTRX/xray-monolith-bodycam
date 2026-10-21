@@ -423,7 +423,7 @@ void ScopeVslr::light_surfaces(CRenderTarget& target, bool sun_shadow)
     shadow.mul(sun_shadow_world_, Device.mInvView);
     RCache.set_c("vslr_shadow", shadow);
     RCache.set_c("vslr_shadow_params", shadowed ? 1.f : 0.f,
-        shadowed ? 1.f / float(RImplementation.o.smapsize) : 0.f, 0.f, 0.f);
+        shadowed ? 1.f / float(sun_shadow_ ? sun_shadow_->dwWidth : RImplementation.o.smapsize) : 0.f, 0.f, 0.f);
     // The kept lamps in the face's view space.
     const bool lamps = capture_lamps_frame == Device.dwFrame;
     for (u32 i = 0; i < capture_lamp_count; ++i)
@@ -487,13 +487,17 @@ void ScopeVslr::capture_mirror(CRenderTarget& target, IRenderable& viewer, const
 
 void ScopeVslr::keep_sun_shadow(float bias)
 {
-    const auto* main = RImplementation.TargetMain;
+    auto* main = RImplementation.TargetMain;
     if (!main || !main->rt_smap_depth) return;
+    // SSS24: with per-cascade sun maps the widest cascade lives in its own map ( own size )
+    const ref_rt& far_smap = main->rt_sun_smap_depth[2] ? main->rt_sun_smap_depth[2] : main->rt_smap_depth;
+    if (sun_shadow_ && sun_shadow_->dwWidth != far_smap->dwWidth)
+        sun_shadow_.destroy();
     if (!sun_shadow_)
-        sun_shadow_.create(sun_shadow_texture, RImplementation.o.smapsize, RImplementation.o.smapsize,
+        sun_shadow_.create(sun_shadow_texture, far_smap->dwWidth, far_smap->dwHeight,
             (D3DFORMAT)RImplementation.o.HW_smap_FORMAT);
     if (!sun_shadow_->pSurface) return;
-    HW.pContext->CopyResource(sun_shadow_->pSurface, main->rt_smap_depth->pSurface);
+    HW.pContext->CopyResource(sun_shadow_->pSurface, far_smap->pSurface);
     // As the installed far-cascade accumulation builds m_shadow (accum_direct_cascade), in world space.
     const light* sun = (light*)RImplementation.Lights.sun_adapted._get();
     const Fmatrix adjust = {

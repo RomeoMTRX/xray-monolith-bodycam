@@ -780,7 +780,15 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 		rt_ssfx_volumetric = createUnique(r2_RT_ssfx_volumetric, w / 8.0f, h / 8.0f, D3DFMT_A16B16G16R16F); // Volumetric
 		rt_ssfx_volumetric_tmp = createUnique(r2_RT_ssfx_volumetric_tmp, w / 8.0f, h / 8.0f, D3DFMT_A16B16G16R16F); // Volumetric
 		rt_ssfx_rain = createUnique(r2_RT_ssfx_rain, w / 8.0f, h / 8.0f, D3DFMT_A8R8G8B8); // Rain refraction buffer
-		rt_ssfx_water_waves = createUnique(r2_RT_ssfx_water_waves, 512, 512, D3DFMT_A8R8G8B8); // Water Waves
+		if (RImplementation.o.ssfx_core)
+		{
+			// SSS24: waves are a 256 height field + mipmapped normals, ripples a mipmapped 512 fp16 target
+			rt_ssfx_water_waves = createUnique(r2_RT_ssfx_water_waves, 256, 256, D3DFMT_A8R8G8B8, u32(-1)); // Water Waves
+			rt_ssfx_water_waves_tmp = createUnique(r2_RT_ssfx_water_waves_tmp, 256, 256, D3DFMT_A8R8G8B8); // Water Waves height
+			rt_ssfx_rain_ripples = createUnique(r2_RT_ssfx_rain_ripples, 512, 512, D3DFMT_A16B16G16R16F, u32(-1)); // Rain ripples
+		}
+		else
+			rt_ssfx_water_waves = createUnique(r2_RT_ssfx_water_waves, 512, 512, D3DFMT_A8R8G8B8); // Water Waves
 
 		rt_ssfx_prevPos = createUnique(r2_RT_ssfx_prevPos, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 
@@ -875,6 +883,20 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 		const bool smap_alloc = isMain || ps_r__svp_smap_alloc != 0;
 		if (smap_alloc)
 			rt_smap_depth = createUnique(r2_RT_smap_depth, size, size, depth_format);
+
+		// SSS24: each sun cascade keeps its own shadow map ( ssfx_cascades_resolution, 0 = r2_smap_size, 512..4096 )
+		if (smap_alloc && RImplementation.o.ssfx_core)
+		{
+			static LPCSTR cascade_names[3] = { r2_RT_sun_smap_depth0, r2_RT_sun_smap_depth1, r2_RT_sun_smap_depth2 };
+			for (u32 i = 0; i < 3; ++i)
+			{
+				u32 csize = size;
+				const float res = ps_ssfx_cascades_resolution[i];
+				if (res > 0.f)
+					csize = (u32)_min(_max((int)res, 512), 4096);
+				rt_sun_smap_depth[i] = createUnique(cascade_names[i], csize, csize, depth_format);
+			}
+		}
 
 		if (RImplementation.o.dx10_minmax_sm)
 		{

@@ -504,11 +504,24 @@ void CRenderTarget::phase_combine()
 		HW.pContext->CopyResource(rt_ssfx_water->pTexture->surface_get(), rt_ssfx_temp->pTexture->surface_get());
 		svp_copy_end(SVP_CP_SCENE);
 
-		// Water SSR Blur
-		phase_ssfx_water_blur();
+		if (RImplementation.o.ssfx_core && rt_ssfx_water_waves_tmp)
+		{
+			// SSS24: rain ripples, then ( not with the ice water ) the blur and the new waves
+			phase_ssfx_rain_ripples();
+			if (!RImplementation.o.ssfx_ice)
+			{
+				phase_ssfx_water_blur();
+				phase_ssfx_water_waves_sss24();
+			}
+		}
+		else
+		{
+			// Water SSR Blur
+			phase_ssfx_water_blur();
 
-		// Water waves
-		phase_ssfx_water_waves();
+			// Water waves
+			phase_ssfx_water_waves();
+		}
 	}
 
 	if (!RImplementation.o.dx10_msaa)

@@ -193,6 +193,9 @@ public:
 	bool m_bMakeAsyncSS;
 	bool m_bFirstFrameAfterReset; // Determines weather the frame is the first after resetting device.
 	xr_vector<sun::cascade> m_sun_cascades;
+	// SSS24: per-cascade update delay, the frame each cascade renders next and the combine it was rendered with
+	u32 m_sun_cascade_next_frame[3] = { 0, 0, 0 };
+	Fmatrix m_sun_cascade_combine[3];
 
 	CFrustum rainwet_cull_frustum;
 	Fvector3 rainwet_cull_COP;

@@ -583,7 +583,10 @@ void CRender::share_main_smaps()
 		return;
 	for (auto& r : TargetMain->RenderTargetRemaps)
 		if (r.second == TargetMain->rt_smap_depth ||
-			(TargetMain->rt_smap_depth_minmax && r.second == TargetMain->rt_smap_depth_minmax))
+			(TargetMain->rt_smap_depth_minmax && r.second == TargetMain->rt_smap_depth_minmax) ||
+			(TargetMain->rt_sun_smap_depth[0] && r.second == TargetMain->rt_sun_smap_depth[0]) || // SSS24 cascades
+			(TargetMain->rt_sun_smap_depth[1] && r.second == TargetMain->rt_sun_smap_depth[1]) ||
+			(TargetMain->rt_sun_smap_depth[2] && r.second == TargetMain->rt_sun_smap_depth[2]))
 			r.first->surface_set(r.second->pSurface);
 	RCache.Invalidate();
 }

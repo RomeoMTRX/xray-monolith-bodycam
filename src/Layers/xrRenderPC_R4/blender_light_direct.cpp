@@ -40,7 +40,7 @@ void CBlender_accum_direct::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_material", r2_material);
 		C.r_dx10Texture("s_accumulator", r2_RT_accum);
 		C.r_dx10Texture("s_lmap", r2_sunmask);
-		C.r_dx10Texture("s_smap", r2_RT_smap_depth);
+		C.r_dx10Texture("s_smap", RImplementation.o.ssfx_core ? (C.iElement == SE_SUN_MIDDLE ? r2_RT_sun_smap_depth1 : r2_RT_sun_smap_depth0) : r2_RT_smap_depth); // SSS24 per-cascade shadow maps
 		C.r_dx10Texture("s_smap_minmax", r2_RT_smap_depth_minmax);
 
 		//C.r_dx10Texture("s_hud_mask", r2_RT_ssfx_hud);
@@ -67,7 +67,7 @@ void CBlender_accum_direct::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_material", r2_material);
 		C.r_dx10Texture("s_accumulator", r2_RT_accum);
 		C.r_dx10Texture("s_lmap", r2_sunmask);
-		C.r_dx10Texture("s_smap", r2_RT_smap_depth);
+		C.r_dx10Texture("s_smap", RImplementation.o.ssfx_core ? r2_RT_sun_smap_depth2 : r2_RT_smap_depth); // SSS24
 
 		//C.r_dx10Texture("s_hud_mask", r2_RT_ssfx_hud);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss);
@@ -118,7 +118,7 @@ void CBlender_accum_direct::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_material", r2_material);
 		C.r_dx10Texture("s_accumulator", r2_RT_accum);
 		C.r_dx10Texture("s_lmap", r2_sunmask);
-		C.r_dx10Texture("s_smap", r2_RT_smap_depth);
+		C.r_dx10Texture("s_smap", RImplementation.o.ssfx_core ? r2_RT_sun_smap_depth0 : r2_RT_smap_depth); // SSS24
 		C.r_dx10Texture("s_smap_minmax", r2_RT_smap_depth_minmax);
 
 		//C.r_dx10Texture("s_hud_mask", r2_RT_ssfx_hud);
@@ -183,7 +183,7 @@ void CBlender_accum_direct_msaa::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_material", r2_material);
 		C.r_dx10Texture("s_accumulator", r2_RT_accum);
 		C.r_dx10Texture("s_lmap", r2_sunmask);
-		C.r_dx10Texture("s_smap", r2_RT_smap_depth);
+		C.r_dx10Texture("s_smap", RImplementation.o.ssfx_core ? (C.iElement == SE_SUN_MIDDLE ? r2_RT_sun_smap_depth1 : r2_RT_sun_smap_depth0) : r2_RT_smap_depth); // SSS24 per-cascade shadow maps
 
 		//C.r_dx10Texture("s_hud_mask", r2_RT_ssfx_hud);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss);
@@ -209,7 +209,7 @@ void CBlender_accum_direct_msaa::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_material", r2_material);
 		C.r_dx10Texture("s_accumulator", r2_RT_accum);
 		C.r_dx10Texture("s_lmap", r2_sunmask);
-		C.r_dx10Texture("s_smap", r2_RT_smap_depth);
+		C.r_dx10Texture("s_smap", RImplementation.o.ssfx_core ? r2_RT_sun_smap_depth2 : r2_RT_smap_depth); // SSS24
 
 		//C.r_dx10Texture("s_hud_mask", r2_RT_ssfx_hud);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss);
