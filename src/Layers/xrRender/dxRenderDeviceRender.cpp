@@ -3,6 +3,7 @@
 
 #include "ResourceManager.h"
 #include "../../xrEngine/shader_bus.h"
+#include "../../xrEngine/sl_latency.h"
 
 // a shader bus texture lane's $user$bus_ alias and the texture it shows
 struct bus_texture_slot
@@ -507,6 +508,9 @@ void dxRenderDeviceRender::End()
 	}
 # endif
 
+	// SSS24: Reflex / PC Latency markers, the swapchain is not a Streamline proxy so present is marked here
+	sl_latency::marker(sl_latency::RenderSubmitEnd);
+
 	// true PiP presents every frame, legacy suppresses on the hidden SVP frame
 	if (Device.true_pip_on || (!Device.m_SecondViewport.IsSVPFrame() && !Device.m_SecondViewport.isCamReady)) {
 		extern float svp_stats_present_ms;
@@ -515,7 +519,9 @@ void dxRenderDeviceRender::End()
 #ifdef USE_DX11
 		svp_frame_burst_capture(); // r__svp_frame_burst saves this frame
 #endif
+		sl_latency::marker(sl_latency::PresentStart);
 		HW.m_pSwapChain->Present(present_interval, present_flags);
+		sl_latency::marker(sl_latency::PresentEnd);
 		svp_stats_present_ms = present_timer.GetElapsed_ms_f();
 	}
 #else //!USE_DX10 || USE_DX11
