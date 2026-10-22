@@ -445,9 +445,9 @@ int ps_ssfx_ao_quality = 4; // AO Samples
 Fvector4 ps_ssfx_ao = { 1.0f, 5.0f, 1.0f, 2.5f }; // Res, AO int, Blur, Radius
 Fvector4 ps_ssfx_ao_setup1 = { 150.0, 1.0, 1.0, 0.0 }; // Distance, HUD, Flora, Max OCC
 
-Fvector4 ps_ssfx_water = { 1.0f, 0.8f, 1.0f, 0.0f }; // Res, Blur, Blur Perlin, -
+Fvector4 ps_ssfx_water = { 1.0f, 0.8f, 1.0f, 1.0f }; // Res, Blur, Blur Perlin, Waves Scale ( SSS24, the water shader divides by it )
 Fvector3 ps_ssfx_water_quality = { 1.0, 2.0, 0.0 }; // SSR Quality, Parallax Quality, -
-Fvector4 ps_ssfx_water_setup1 = { 0.6f, 3.0f, 0.3f, 0.05f }; // Distortion, Turbidity, Softborder, Parallax Height
+Fvector4 ps_ssfx_water_setup1 = { 0.6f, 3.0f, 1.0f, 0.05f }; // Distortion, Turbidity, Flow Speed, Parallax Height
 Fvector4 ps_ssfx_water_setup2 = { 0.8f, 6.0f, 0.3f, 0.5f }; // Reflection, Specular, Caustics, Ripples
 
 int ps_ssfx_ssr_quality = 0; // Quality
@@ -458,7 +458,7 @@ Fvector4 ps_ssfx_terrain_quality = { 8, 0, 0, 0 };
 Fvector4 ps_ssfx_terrain_offset = { 0, 0, 0, 0 };
 
 Fvector3 ps_ssfx_shadows = { 256, 1536, 0.0f }; // LOD min res, LOD max res, -
-Fvector4 ps_ssfx_volumetric = { 1.0f, 1.0f, 3.0f, 1.0f }; // Force Volumetric, Vol Intensity, Vol Quality, -
+Fvector4 ps_ssfx_volumetric = { 1.0f, 1.0f, 3.0f, 0.07f }; // Force Volumetric, Vol Intensity, Vol Quality, Max Luminance ( SSS24 )
 
 Fvector3 ps_ssfx_shadow_bias = { 0.4f, 0.03f, 0.0f };
 // SSS24
@@ -1761,9 +1761,10 @@ void xrRender_initconsole()
 	CMD4(CCC_Vector4, "ssfx_ao", &ps_ssfx_ao, Fvector4().set(0, 0, 0, 0), Fvector4().set(8, 10, 1, 10));
 	CMD4(CCC_Vector4, "ssfx_ao_setup1", &ps_ssfx_ao_setup1, Fvector4().set(0, 0, 0, 0), Fvector4().set(300, 1, 1, 1));
 
-	CMD4(CCC_Vector4, "ssfx_water", &ps_ssfx_water, Fvector4().set(1, 0, 0, 0), Fvector4().set(8, 1, 1, 0));
+	// SSS24 RC2 ranges: .w is the waves scale ( 0.1 - 5 ), out of range calls are rejected whole
+	CMD4(CCC_Vector4, "ssfx_water", &ps_ssfx_water, Fvector4().set(1, 0, 0, 0.1f), Fvector4().set(8, 1, 1, 5));
 	CMD4(CCC_Vector3, "ssfx_water_quality", &ps_ssfx_water_quality, Fvector3().set(0, 0, 0), Fvector3().set(4, 3, 0));
-	CMD4(CCC_Vector4, "ssfx_water_setup1", &ps_ssfx_water_setup1, Fvector4().set(0, 0, 0, 0), Fvector4().set(2, 10, 1, 0.1));
+	CMD4(CCC_Vector4, "ssfx_water_setup1", &ps_ssfx_water_setup1, Fvector4().set(0, 0, 0, 0), Fvector4().set(2, 10, 3, 0.1));
 	CMD4(CCC_Vector4, "ssfx_water_setup2", &ps_ssfx_water_setup2, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 10, 1, 1));
 
 	CMD4(CCC_Integer, "ssfx_ssr_quality", &ps_ssfx_ssr_quality, 0, 5);
@@ -1774,7 +1775,8 @@ void xrRender_initconsole()
 	CMD4(CCC_Vector4, "ssfx_terrain_offset", &ps_ssfx_terrain_offset, Fvector4().set(-1, -1, -1, -1), Fvector4().set(1, 1, 1, 1));
 
 	CMD4(CCC_Vector3, "ssfx_shadows", &ps_ssfx_shadows, Fvector3().set(128, 1536, 0), Fvector3().set(1536, 4096, 0));
-	CMD4(CCC_Vector4, "ssfx_volumetric", &ps_ssfx_volumetric, Fvector4().set(0, 0, 1.0, 1.0), Fvector4().set(1.0, 5.0, 5.0, 16.0));
+	// SSS24 RC2: .w is the max luminance of the volumetric combine ( 0 - 1 )
+	CMD4(CCC_Vector4, "ssfx_volumetric", &ps_ssfx_volumetric, Fvector4().set(0, 0, 1.0, 0), Fvector4().set(1.0, 5.0, 5.0, 1.0));
 
 	CMD4(CCC_Vector3, "ssfx_shadow_bias", &ps_ssfx_shadow_bias, Fvector3().set(0, 0, 0), Fvector3().set(1.0, 1.0, 1.0));
 	// SSS24
