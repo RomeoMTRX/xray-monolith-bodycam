@@ -144,6 +144,27 @@ void CBodycam::ApplySprintBob(BodycamReference::SprintBobInput input)
 			bob.rotation[2]);
 }
 
+// Tarkov Handling turns the gun about the grip like the sprint bob, so the
+// muzzle swings while the stock stays near the shoulder.
+void CBodycam::ApplyTarkovHandling(const SimulationOutput& output)
+{
+	if (!output.tarkov_active)
+		return;
+	m_viewmodel_active = true;
+	const Fvector rotation = ToFvector(output.tarkov_rot);
+	Fmatrix turn;
+	turn.setHPB(DegToRad(rotation.x), DegToRad(rotation.y), DegToRad(rotation.z));
+	Fvector turned;
+	turn.transform_dir(turned, kSprintBobPivot);
+	m_viewmodel_pos.add(ToFvector(output.tarkov_pos));
+	m_viewmodel_pos.add(kSprintBobPivot).sub(turned);
+	m_viewmodel_rot.add(rotation);
+	if (DiagnosticsEnabled(2))
+		Msg("[BODYCAM-TARKOV] frame=%u x=%.5f y=%.5f z=%.5f heading=%.3f pitch=%.3f bank=%.3f mass=%.3f walk=%.3f phase=%.3f",
+			Device.dwFrame, output.tarkov_pos.x, output.tarkov_pos.y, output.tarkov_pos.z, rotation.x, rotation.y, rotation.z,
+			m_state.tarkov.mass, m_state.tarkov.walk, m_state.tarkov.phase);
+}
+
 PipView CBodycam::UpdatePipView(const PipInput& input)
 {
 	return m_pip_adapter.Update(input, ReadPipRuntime());
@@ -172,6 +193,11 @@ const CameraComposition& CBodycam::Update(const ActorFrame& frame, CameraRigHost
 	input.sprint_camera_owned_elsewhere = config.footstep.enable;
 	input.mouse_aim_yaw = mouse_aim.yaw;
 	input.mouse_aim_pitch = mouse_aim.pitch;
+	input.velocity_right = frame.velocity_right;
+	input.velocity_forward = frame.velocity_forward;
+	input.grounded = frame.grounded;
+	input.foot_phase = frame.foot_phase;
+	input.weapon_weight = frame.weapon_weight;
 
 	SimulationOutput sim_output;
 	UpdateSimulation(config.sim, m_state, input, sim_output);
@@ -190,6 +216,7 @@ const CameraComposition& CBodycam::Update(const ActorFrame& frame, CameraRigHost
 	}
 	ApplyViewmodelProfile(input.dt, input.ads_blend);
 	ApplySprintBob(frame.sprint_bob);
+	ApplyTarkovHandling(sim_output);
 
 	m_arm_pose.active = sim_output.stalker2_arm_active;
 	m_arm_pose.wrist_rot = ToFvector(sim_output.stalker2_wrist_rot);

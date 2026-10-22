@@ -386,6 +386,139 @@ void UpdateStalker2Arm(const Stalker2ArmSettings& settings, Stalker2ArmState& st
 	output.stalker2_movement_weight = state.movement_weight * state.weight * settings.movement_strength * ads_scale;
 	output.stalker2_movement_response = settings.movement_response;
 }
+
+// Tarkov Handling.
+constexpr float kTarkovFadeIn = 0.25f;
+constexpr float kTarkovFadeOut = 0.35f;
+constexpr float kTarkovWalkFadeIn = 0.18f;
+constexpr float kTarkovWalkFadeOut = 0.30f;
+// Ground covered by one stride (two steps) when there is no footstep phase.
+constexpr float kTarkovStrideLength = 1.4f;
+// The weight factor is kept between these, so a pistol never snaps and an MG never drowns.
+constexpr float kTarkovMassMin = 0.4f;
+constexpr float kTarkovMassMax = 2.5f;
+// A new weapon's weight settles over about half a second instead of jumping.
+constexpr float kTarkovMassRate = 6.f;
+constexpr float kTarkovIdle = 0.0005f;
+
+// Spring with adjustable damping (1 = critical, below swings past the target),
+// integrated in steps of at most 1/120 s.
+void UpdateSwingSpring(SVec3& current, SVec3& velocity, const SVec3& target, float frequency, float damping, float dt)
+{
+	const float clamped_dt = std::min(dt, kMaxSmoothingStep);
+	const float omega = 2.f * kPi * std::max(frequency, 0.05f);
+	const float spring = omega * omega;
+	const float damper = 2.f * std::max(damping, 0.05f) * omega;
+	const int steps = std::max(1, static_cast<int>(std::ceil(clamped_dt * 120.f)));
+	const float step_dt = clamped_dt / static_cast<float>(steps);
+
+	for (int step = 0; step < steps; ++step)
+	{
+		velocity.x += ((target.x - current.x) * spring - velocity.x * damper) * step_dt;
+		velocity.y += ((target.y - current.y) * spring - velocity.y * damper) * step_dt;
+		velocity.z += ((target.z - current.z) * spring - velocity.z * damper) * step_dt;
+		current.x += velocity.x * step_dt;
+		current.y += velocity.y * step_dt;
+		current.z += velocity.z * step_dt;
+	}
+}
+
+void UpdateTarkovHandling(const TarkovHandlingSettings& settings, TarkovHandlingState& state, const SimulationInput& input,
+	const InputSignals& signals, SimulationOutput& output)
+{
+	const bool allowed = settings.enable && input.firearm_equipped && settings.strength > kEpsilon;
+	const float target_weight = allowed ? 1.f : 0.f;
+	state.weight = SmoothTime(state.weight, target_weight, target_weight > state.weight ? kTarkovFadeIn : kTarkovFadeOut, input.dt);
+
+	// Weapon weight: heavier swings wider and settles slower.
+	float mass_target = 1.f;
+	if (input.weapon_weight > kEpsilon && settings.reference_weight > kEpsilon)
+		mass_target = std::clamp(input.weapon_weight / settings.reference_weight, kTarkovMassMin, kTarkovMassMax);
+	mass_target = Lerp(1.f, mass_target, std::clamp(settings.weight_influence, 0.f, 1.f));
+	if (!state.mass_initialized)
+	{
+		state.mass = mass_target;
+		state.mass_initialized = true;
+	}
+	else
+		state.mass = SmoothFloat(state.mass, mass_target, kTarkovMassRate, input.dt);
+	const float mass_root = std::sqrt(state.mass);
+
+	const float ads_scale = Lerp(1.f, settings.ads_scale, input.ads_blend);
+	const float overall = settings.strength * ads_scale;
+
+	// Mouse drag: the gun trails the turn and swings past when it stops.
+	SVec3 pos_target;
+	SVec3 rot_target;
+	if (allowed && settings.drag_full_speed > kEpsilon)
+	{
+		const float full = DegToRad(settings.drag_full_speed);
+		const float throw_x = SoftLimit(signals.mouse_speed.x / full); // + turning left
+		const float throw_y = SoftLimit(signals.mouse_speed.y / full); // + looking up
+		const float drag = settings.drag_strength * overall * mass_root;
+		rot_target.x -= settings.drag_yaw * throw_x * drag;
+		rot_target.y -= settings.drag_pitch * throw_y * drag;
+		rot_target.z -= settings.drag_roll * throw_x * drag;
+		pos_target.x += settings.drag_shift_x * throw_x * drag;
+		pos_target.y -= settings.drag_shift_y * throw_y * drag;
+	}
+
+	// Walking: a figure eight per stride and a lean against the movement.
+	const float speed = std::sqrt(input.velocity_right * input.velocity_right + input.velocity_forward * input.velocity_forward);
+	const bool moving = allowed && input.grounded && !!(input.move_flags & smfAnyMove) && !(input.move_flags & (smfFall | smfJump));
+	float gait = 1.f;
+	if (input.move_flags & smfSprint)
+		gait = settings.sprint_scale;
+	else if (input.move_flags & smfCrouch)
+		gait = settings.crouch_scale;
+	const float walk_full = std::max(settings.walk_speed, 0.1f);
+	const float walk_target = moving ? std::min(speed / walk_full, 1.25f) * gait : 0.f;
+	state.walk = SmoothTime(state.walk, walk_target, walk_target > state.walk ? kTarkovWalkFadeIn : kTarkovWalkFadeOut, input.dt);
+
+	if (input.foot_phase >= 0.f)
+		state.phase = input.foot_phase;
+	else if (speed > kEpsilon)
+		state.phase += speed / kTarkovStrideLength * std::min(input.dt, kMaxSmoothingStep);
+	state.phase -= std::floor(state.phase);
+
+	if (state.walk > kTarkovIdle)
+	{
+		// Sideways once per stride, centred on each foot contact (phase 0 and 0.5),
+		// down at every contact and up between them.
+		const float cycle = state.phase * 2.f * kPi;
+		const float lateral = std::sin(cycle);
+		const float vertical = -std::cos(2.f * cycle);
+		const float walk = settings.walk_strength * overall * state.walk * std::sqrt(mass_root);
+		pos_target.x += settings.walk_x * lateral * walk;
+		pos_target.y += settings.walk_y * vertical * walk;
+		rot_target.x += settings.walk_yaw * lateral * walk;
+		rot_target.y += settings.walk_pitch * vertical * walk;
+		rot_target.z += settings.walk_roll * lateral * walk;
+	}
+
+	if (allowed)
+	{
+		const float lean = overall * mass_root * (input.grounded ? 1.f : 0.5f);
+		const float right = std::clamp(input.velocity_right / walk_full, -1.5f, 1.5f);
+		const float forward = std::clamp(input.velocity_forward / walk_full, -1.5f, 1.5f);
+		pos_target.x -= settings.strafe_shift * right * lean;
+		rot_target.z += settings.strafe_roll * right * lean;
+		rot_target.y -= settings.forward_dip * forward * lean;
+		pos_target.z -= settings.forward_pull * forward * lean;
+	}
+
+	// One spring carries everything, softer for heavier weapons.
+	const float frequency = settings.frequency / mass_root;
+	UpdateSwingSpring(state.pos, state.pos_vel, pos_target, frequency, settings.damping, input.dt);
+	UpdateSwingSpring(state.rot, state.rot_vel, rot_target, frequency, settings.damping, input.dt);
+
+	output.tarkov_active = state.weight > kTarkovIdle &&
+		(state.pos.Magnitude() > kTarkovIdle * 0.01f || state.rot.Magnitude() > kTarkovIdle || state.pos_vel.Magnitude() > kTarkovIdle);
+	output.tarkov_pos = state.pos;
+	output.tarkov_pos.Mul(state.weight);
+	output.tarkov_rot = state.rot;
+	output.tarkov_rot.Mul(state.weight);
+}
 } // namespace
 
 AdsState ResolveAdsState(bool weapon_zoomed, float weapon_blend)
@@ -484,6 +617,7 @@ void UpdateSimulation(const SimulationSettings& settings, SimulationState& state
 	const bool kick_active = UpdateFireImpulse(settings.fire, state.fire, input);
 	UpdateLowering(settings.lowering, state.lowering, input);
 	UpdateStalker2Arm(settings.stalker2_arm, state.stalker2_arm, input, state.signals, output);
+	UpdateTarkovHandling(settings.tarkov, state.tarkov, input, state.signals, output);
 
 	// The viewmodel offset is the sum of the two features that move it.
 	output.lower_amount = state.lowering.amount;

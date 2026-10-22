@@ -210,6 +210,27 @@ bool CActor::cam_BodycamVisualUpdate(const CCameraBase* camera, float dt, float 
 	frame.weapon_lowered = is_safemode();
 	frame.combat = m_sndShockEffector && m_sndShockEffector->InWork();
 	frame.firearm_equipped = HasActiveFirearm(*this);
+	// Tarkov Handling: the actor's horizontal velocity in the view's frame, the
+	// footstep phase and the active weapon's weight (attachments and magazine included).
+	if (config.sim.tarkov.enable)
+	{
+		const ActorMotion tarkov_motion = motion_read ? motion : ReadActorMotion(*this);
+		Fvector forward = camera->vDirection;
+		forward.y = 0.f;
+		if (forward.square_magnitude() > EPS_S)
+		{
+			forward.normalize();
+			const Fvector right = Fvector().set(forward.z, 0.f, -forward.x);
+			frame.velocity_right = tarkov_motion.velocity.dotproduct(right);
+			frame.velocity_forward = tarkov_motion.velocity.dotproduct(forward);
+		}
+		frame.grounded = tarkov_motion.on_ground && !(state & kOffGroundStates);
+		float tarkov_phase;
+		if ((state & mcAnyMove) && !(state & kNoStrideStates) && foot_phase(tarkov_phase))
+			frame.foot_phase = tarkov_phase;
+		if (const CWeapon* weapon = ActiveBodycamWeapon(*this))
+			frame.weapon_weight = weapon->Weight();
+	}
 	// The Sprint Transition's gun step bob, once the start has decided that the
 	// weapon plays no run-to-sprint clip of its own.
 	if (config.sim.sprint.enable && config.sprint_start.gun_bob > 0.f)

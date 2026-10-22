@@ -35,6 +35,13 @@ struct ActorFrame
 	bool firearm_equipped = true;
 	// The Sprint Transition's gun step bob; gathered only while it is held or fading.
 	BodycamReference::SprintBobInput sprint_bob;
+	// Tarkov Handling: horizontal velocity in the view's frame (m/s), ground
+	// contact, the footstep phase (negative when none) and the weapon's weight (kg).
+	float velocity_right = 0.f;
+	float velocity_forward = 0.f;
+	bool grounded = true;
+	float foot_phase = -1.f;
+	float weapon_weight = 0.f;
 };
 
 // The Classic simulation and camera rig of one actor, and what they publish to
@@ -65,6 +72,7 @@ private:
 	void ClearHudOutput();
 	void ApplyViewmodelProfile(float dt, float ads_blend);
 	void ApplySprintBob(BodycamReference::SprintBobInput input);
+	void ApplyTarkovHandling(const SimulationOutput& output);
 
 	SimulationState m_state;
 	ClassicCameraRig m_camera_rig;

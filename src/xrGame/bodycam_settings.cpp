@@ -295,6 +295,34 @@ const FloatBinding g_float_bindings[] = {
 	BODYCAM_FLOAT(stalker2_arm_ik_mouse_roll, sim.stalker2_arm.mouse_roll, -30.f, 30.f),
 	BODYCAM_FLOAT(stalker2_arm_ik_wrist_scale, sim.stalker2_arm.wrist_scale, 0.f, 1.f),
 	BODYCAM_FLOAT(stalker2_arm_ik_layer_weight, sim.stalker2_arm.weight, 0.f, 1.f),
+
+	// Tarkov Handling.
+	BODYCAM_FLOAT(tarkov_strength, sim.tarkov.strength, 0.f, 3.f),
+	BODYCAM_FLOAT(tarkov_frequency, sim.tarkov.frequency, 0.3f, 6.f),
+	BODYCAM_FLOAT(tarkov_damping, sim.tarkov.damping, 0.1f, 1.5f),
+	BODYCAM_FLOAT(tarkov_ads_scale, sim.tarkov.ads_scale, 0.f, 1.f),
+	BODYCAM_FLOAT(tarkov_drag_strength, sim.tarkov.drag_strength, 0.f, 3.f),
+	BODYCAM_FLOAT(tarkov_drag_full_speed, sim.tarkov.drag_full_speed, 30.f, 900.f),
+	BODYCAM_FLOAT(tarkov_drag_yaw, sim.tarkov.drag_yaw, -15.f, 15.f),
+	BODYCAM_FLOAT(tarkov_drag_pitch, sim.tarkov.drag_pitch, -15.f, 15.f),
+	BODYCAM_FLOAT(tarkov_drag_roll, sim.tarkov.drag_roll, -15.f, 15.f),
+	BODYCAM_FLOAT(tarkov_drag_shift_x, sim.tarkov.drag_shift_x, -0.06f, 0.06f),
+	BODYCAM_FLOAT(tarkov_drag_shift_y, sim.tarkov.drag_shift_y, -0.06f, 0.06f),
+	BODYCAM_FLOAT(tarkov_walk_strength, sim.tarkov.walk_strength, 0.f, 3.f),
+	BODYCAM_FLOAT(tarkov_walk_x, sim.tarkov.walk_x, 0.f, 0.05f),
+	BODYCAM_FLOAT(tarkov_walk_y, sim.tarkov.walk_y, 0.f, 0.05f),
+	BODYCAM_FLOAT(tarkov_walk_roll, sim.tarkov.walk_roll, -10.f, 10.f),
+	BODYCAM_FLOAT(tarkov_walk_yaw, sim.tarkov.walk_yaw, -10.f, 10.f),
+	BODYCAM_FLOAT(tarkov_walk_pitch, sim.tarkov.walk_pitch, -10.f, 10.f),
+	BODYCAM_FLOAT(tarkov_walk_speed, sim.tarkov.walk_speed, 0.5f, 6.f),
+	BODYCAM_FLOAT(tarkov_crouch_scale, sim.tarkov.crouch_scale, 0.f, 2.f),
+	BODYCAM_FLOAT(tarkov_sprint_scale, sim.tarkov.sprint_scale, 0.f, 2.f),
+	BODYCAM_FLOAT(tarkov_strafe_shift, sim.tarkov.strafe_shift, -0.06f, 0.06f),
+	BODYCAM_FLOAT(tarkov_strafe_roll, sim.tarkov.strafe_roll, -15.f, 15.f),
+	BODYCAM_FLOAT(tarkov_forward_dip, sim.tarkov.forward_dip, -10.f, 10.f),
+	BODYCAM_FLOAT(tarkov_forward_pull, sim.tarkov.forward_pull, -0.04f, 0.04f),
+	BODYCAM_FLOAT(tarkov_weight_influence, sim.tarkov.weight_influence, 0.f, 1.f),
+	BODYCAM_FLOAT(tarkov_reference_weight, sim.tarkov.reference_weight, 0.5f, 15.f),
 };
 
 BoolBinding g_bool_bindings[] = {
@@ -316,6 +344,7 @@ BoolBinding g_bool_bindings[] = {
 	BODYCAM_BOOL(vm_lowering_enable, sim.lowering.enable),
 	BODYCAM_BOOL(vm_lowering_disable_in_combat, sim.lowering.disable_in_combat),
 	BODYCAM_BOOL(stalker2_style_arm_ik_enable, sim.stalker2_arm.enable),
+	BODYCAM_BOOL(tarkov_handling_enable, sim.tarkov.enable),
 	BODYCAM_BOOL(fire_impulse_enable, sim.fire.enable),
 	BODYCAM_BOOL(sprint_transition_enable, sim.sprint.enable),
 	BODYCAM_BOOL(movement_inertia_enable, movement_inertia.enable),
@@ -332,6 +361,7 @@ bool* const g_preset_features[] = {
 	&g_config.camera.enable,
 	&g_config.sim.lowering.enable,
 	&g_config.sim.stalker2_arm.enable,
+	&g_config.sim.tarkov.enable,
 	&g_config.sim.fire.enable,
 	&g_config.sim.sprint.enable,
 	&g_config.movement_inertia.enable,
@@ -439,7 +469,7 @@ bool AnyEffectEnabled()
 {
 	const RuntimeConfig& config = g_config;
 	return config.camera.enable || config.sim.sprint.enable || config.sim.lowering.enable || config.sim.fire.enable ||
-		config.sim.stalker2_arm.enable || config.footstep.enable || config.regrip.enable || config.recoil.enable ||
+		config.sim.stalker2_arm.enable || config.sim.tarkov.enable || config.footstep.enable || config.regrip.enable || config.recoil.enable ||
 		config.handling.directional_weapon_inertia || config.handling.movement_linked_handling;
 }
 
