@@ -525,10 +525,11 @@ void CRenderTarget::phase_combine()
 		}
 	}
 
+	// SSS24 RC2: the water shader writes its velocity to SV_Target2, the upscaler / TAA need it there
 	if (!RImplementation.o.dx10_msaa)
-		u_setrt(rt_Generic_0, 0, 0, HW.pBaseZB);
+		u_setrt(rt_Generic_0, 0, rt_ssfx_motion_vectors, HW.pBaseZB);
 	else
-		u_setrt(rt_Generic_0_r, 0, 0, rt_MSAADepth->pZRT);
+		u_setrt(rt_Generic_0_r, 0, rt_ssfx_motion_vectors, rt_MSAADepth->pZRT);
 
 	// Final water rendering ( All the code above can be omitted if the Water module isn't installed )
 	// pip the SSS water shader flattens the scope water (ssfx_issvp), force_water_reflect turns the
