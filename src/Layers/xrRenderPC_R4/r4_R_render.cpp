@@ -57,6 +57,9 @@ void CRender::SetMatrices(Fmatrix view, Fmatrix projection, Fmatrix projection_h
 void CRender::render_menu()
 {
 	PIX_EVENT(render_menu);
+	// SSS24: an upscaled main target draws the PP-UI at its render size, stretched to the display below
+	Target->ssfx_size_mode(false);
+
 	//	Globals
 	RCache.set_CullMode(CULL_CCW);
 	RCache.set_Stencil(FALSE);
@@ -76,9 +79,18 @@ void CRender::render_menu()
 		g_pGamePersistent->OnRenderPPUI_PP(); // PP-UI
 	}
 
-	// SSS24: the menu shader ( distort.s ) reads scene_aa
+	// SSS24: the menu shader ( distort.s ) reads scene_aa ( display size: stretched when the scene renders lower )
 	if (o.ssfx_core && Target->rt_scene_aa)
-		HW.pContext->CopyResource(Target->rt_scene_aa->pTexture->surface_get(), Target->rt_Generic_0->pTexture->surface_get());
+	{
+		if (Target->m_upscaled)
+		{
+			Target->ssfx_size_mode(true);
+			Target->phase_ssfx_upscale_stretch();
+		}
+		else
+			HW.pContext->CopyResource(Target->rt_scene_aa->pTexture->surface_get(), Target->rt_Generic_0->pTexture->surface_get());
+	}
+	Target->ssfx_size_mode(true);
 
 	// Actual Display
 	Target->u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
@@ -165,6 +177,16 @@ void CRender::Render()
 
 	ssfx_upscaler::begin_frame(); // SSS24: Streamline frame token for DLSS
 
+	// SSS24: whatever path leaves Render, the UI and the present after it run at the display size
+	struct ssfx_display_guard
+	{
+		~ssfx_display_guard()
+		{
+			if (RImplementation.TargetMain)
+				RImplementation.TargetMain->ssfx_size_mode(true);
+		}
+	} ssfx_display;
+
 	rmNormal();
 
 	bool _menu_pp = g_pGamePersistent ? g_pGamePersistent->OnRenderPPUI_query() : false;
@@ -183,6 +205,10 @@ void CRender::Render()
 		Target->u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
 		return;
 	}
+
+	// SSS24: the scene renders at the main target's render size until the upscaler ( phase_combine )
+	if (TargetMain)
+		TargetMain->ssfx_size_mode(false);
 
 	// pip the scope lens shaders build with the level's first frame, not on the first aim; here, where shader
 	// creation is serialized with rendering (the level loader's thread would race the loading screen)

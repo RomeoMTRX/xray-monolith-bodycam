@@ -789,29 +789,41 @@ void CRenderTarget::phase_combine()
 		if (!svp_pass_core && this == RImplementation.TargetMain && ssfx_upscaler::active())
 		{
 			PIX_EVENT(SSFX_DLSS);
-			upscaled = ssfx_upscaler::evaluate(this);
+			upscaled = ssfx_upscaler::evaluate(this); // reads the render size depth, before the switch below
+		}
+
+		if (!svp_pass_core && m_upscaled)
+		{
+			// SSS24: the scene rendered lower, everything from here on runs at the display size; the display
+			// depth holds no scene, cleared so the passes that test or stencil against it start from far / 0
+			ssfx_size_mode(true);
+			HW.pContext->ClearDepthStencilView(HW.pBaseZB, D3D_CLEAR_DEPTH | D3D_CLEAR_STENCIL, 1.f, 0);
 			if (upscaled)
 				phase_ssfx_upscaler_sharp();
-		}
-
-		// the SVP pass already ran its TAA ( early, into rt_Generic_0 )
-		if (upscaled)
-		{
-		}
-		else if (!svp_pass_core && RImplementation.o.ssfx_taa && ps_ssfx_taa.x > 0)
-		{
-			tm_beg(svp_stats::SEC_C_TAA);
-			phase_ssfx_taa(true);
-			tm_end(svp_stats::SEC_C_TAA);
+			else
+				phase_ssfx_upscale_stretch(); // DLSS off until the targets are rebuilt, or it failed this frame
+			phase_ssfx_upscale_pos(); // position and heat at the display size ( SSS POS_UPSCALE )
 		}
 		else
-			HW.pContext->CopyResource(rt_scene_aa->pTexture->surface_get(), rt_Generic_0->pTexture->surface_get());
-
-		// position and heat for the display resolution passes, same resolution without an upscaler
-		if (!RImplementation.o.dx10_msaa && rt_upscaled_pos && rt_upscaled_heat && rt_Position && rt_Heat)
 		{
-			HW.pContext->CopyResource(rt_upscaled_pos->pTexture->surface_get(), rt_Position->pTexture->surface_get());
-			HW.pContext->CopyResource(rt_upscaled_heat->pTexture->surface_get(), rt_Heat->pTexture->surface_get());
+			if (upscaled)
+				phase_ssfx_upscaler_sharp();
+			// the SVP pass already ran its TAA ( early, into rt_Generic_0 )
+			else if (!svp_pass_core && RImplementation.o.ssfx_taa && ps_ssfx_taa.x > 0)
+			{
+				tm_beg(svp_stats::SEC_C_TAA);
+				phase_ssfx_taa(true);
+				tm_end(svp_stats::SEC_C_TAA);
+			}
+			else
+				HW.pContext->CopyResource(rt_scene_aa->pTexture->surface_get(), rt_Generic_0->pTexture->surface_get());
+
+			// position and heat for the display resolution passes, same resolution without an upscaler
+			if (!RImplementation.o.dx10_msaa && rt_upscaled_pos && rt_upscaled_heat && rt_Position && rt_Heat)
+			{
+				HW.pContext->CopyResource(rt_upscaled_pos->pTexture->surface_get(), rt_Position->pTexture->surface_get());
+				HW.pContext->CopyResource(rt_upscaled_heat->pTexture->surface_get(), rt_Heat->pTexture->surface_get());
+			}
 		}
 	}
 
@@ -1069,7 +1081,8 @@ void CRenderTarget::phase_combine()
 	tm_end(svp_stats::SEC_C_COMBINE2);
 	RCache.set_Stencil(FALSE);
 
-	if (RImplementation.o.dx11_hdr10) {
+	// SSS24: HDR10 bloom / flares copy scene_final into rt_Generic_0, not possible once the scene renders lower
+	if (RImplementation.o.dx11_hdr10 && !m_upscaled) {
 		// TODO: we should be able to avoid a copy if both are enabled
 		if (ps_r4_hdr10_bloom_on) {
 			HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), (ssfx_core_path ? rt_scene_final : rt_Color)->pTexture->surface_get());

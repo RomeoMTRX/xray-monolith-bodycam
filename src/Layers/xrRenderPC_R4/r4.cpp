@@ -217,6 +217,14 @@ extern ENGINE_API BOOL r2_sun_static;
 extern ENGINE_API BOOL r2_advanced_pp; //	advanced post process and effects
 //////////////////////////////////////////////////////////////////////////
 // Just two static storage
+// SSS24: the main target, at a lower render size than the swapchain for the DLSS quality modes
+static CRenderTarget* ssfx_create_main_target()
+{
+	u32 w, h;
+	ssfx_upscaler::render_size(Device.dwWidth, Device.dwHeight, w, h);
+	return xr_new<CRenderTarget>(nullptr, w, h, Device.dwWidth, Device.dwHeight);
+}
+
 void CRender::create()
 {
 	Device.seqFrame.Add(this,REG_PRIORITY_HIGH + 0x12345678);
@@ -552,7 +560,11 @@ void CRender::create()
 
 	m_bMakeAsyncSS = false;
 
-	Target = xr_new<CRenderTarget>(); // Main target
+	// SSS24: NVIDIA Streamline ( DLSS ), only with the SSS core shaders; before the main target, whose render
+	// size depends on DLSS being available
+	ssfx_upscaler::init();
+
+	Target = ssfx_create_main_target(); // Main target
 	TargetMain = Target;
 	TargetSVP = nullptr; // created lazily on first SVP use
 
@@ -565,12 +577,9 @@ void CRender::create()
 	GMBase.initialize();
 	FluidManager.Initialize(70, 70, 70);
 	//	FluidManager.Initialize( 100, 100, 100 );
-	FluidManager.SetScreenSize(Device.dwWidth, Device.dwHeight);
+	FluidManager.SetScreenSize(TargetMain->Width, TargetMain->Height); // SSS24: the scene's render size
 
 	Device.ModelDefferClear = xr_make_delegate(Models, &CModelPool::DeleteQueuedDeffer);
-
-	// SSS24: NVIDIA Streamline ( DLSS ), only with the SSS core shaders
-	ssfx_upscaler::init();
 }
 
 void CRender::destroy()
@@ -613,7 +622,7 @@ void CRender::reset_end()
 {
 	HWOCC.occq_create(occq_size);
 
-	Target = xr_new<CRenderTarget>();
+	Target = ssfx_create_main_target();
 	TargetMain = Target;
 	ssfx_upscaler::reset(); // SSS24: DLSS output size follows the new targets
 
@@ -626,7 +635,7 @@ void CRender::reset_end()
 	}
 	//-AVO
 
-	FluidManager.SetScreenSize(Device.dwWidth, Device.dwHeight);
+	FluidManager.SetScreenSize(TargetMain->Width, TargetMain->Height); // SSS24: the scene's render size
 
 	// Set this flag true to skip the first render frame,
 	// that some data is not ready in the first frame (for example device camera position)

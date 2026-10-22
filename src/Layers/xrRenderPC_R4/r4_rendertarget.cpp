@@ -32,6 +32,7 @@
 
 #include "../xrRender/dxRenderDeviceRender.h"
 #include "../xrRender/xrRender_console.h"
+#include "ssfx_upscaler.h"
 
 #include <D3DX10Tex.h>
 
@@ -355,7 +356,7 @@ void generate_jitter(DWORD* dest, u32 elem_count)
 void CRenderTarget::SetActive(bool force)
 {
 	const bool isMain = this == RImplementation.TargetMain;
-	if (isMain)
+	if (isMain && !m_upscaled) // SSS24: an upscaled main target renders into its own base RT / depth
 	{
 		// main restores from the persistent swapchain RTV/DSV, not HW.pBaseRT, which SetActive
 		// clobbers per target so re-reading it would capture the SVP RT and freeze the screen
@@ -427,8 +428,10 @@ CRenderTarget::CRenderTarget()
 {
 }
 
-CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
-	: Width(width), Height(height)
+CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height, u32 display_width, u32 display_height)
+	: Width(width), Height(height),
+	DisplayWidth(display_width ? display_width : width), DisplayHeight(display_height ? display_height : height),
+	m_upscaled(name == nullptr && display_width && display_height && (display_width != width || display_height != height))
 {
 	u32 SampleCount = 1;
 
@@ -512,6 +515,7 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 	b_ssfx_fog_scattering = xr_new<CBlender_ssfx_fog_scattering>();
 	b_ssfx_motion_blur = xr_new<CBlender_ssfx_motion_blur>();
 	b_ssfx_taa = xr_new<CBlender_ssfx_taa>();
+	b_ssfx_upscale = m_upscaled ? ssfx_upscaler::create_blender() : nullptr;
 	b_ssfx_rain = xr_new<CBlender_ssfx_rain>();
 	b_ssfx_water_blur = xr_new<CBlender_ssfx_water_blur>();
 	b_ssfx_bloom = xr_new<CBlender_ssfx_bloom_build>();
@@ -591,9 +595,12 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 	//	NORMAL
 	{
 		u32 w = Width, h = Height;
+		// SSS24: the targets after the upscaler use the display size ( same as w, h unless upscaled )
+		const u32 dw = DisplayWidth, dh = DisplayHeight;
 
 		// PiP base RT/ZB, main restores from the swapchain, SVP renders into its own
-		if (isMain)
+		// SSS24: an upscaled main target renders the scene into its own render-size base RT / depth
+		if (isMain && !m_upscaled)
 		{
 			baseRT = HW.secret_pBaseRT;
 			baseZB = HW.secret_pBaseZB;
@@ -670,7 +677,7 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 			rt_Generic_temp = createUnique("$user$generic_temp", w, h, D3DFMT_A8R8G8B8, RImplementation.o.dx10_msaa ? SampleCount : 1);
 		}
 
-		rt_dof = createUnique(r2_RT_dof, w, h, RImplementation.o.dx11_hdr10 ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8);
+		rt_dof = createUnique(r2_RT_dof, dw, dh, RImplementation.o.dx11_hdr10 ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8); // SSS24: after AA
 
 		// pip rt_secondVP format must match rt_Generic_0/rt_Color so phase_svp_capture's CopyResource
 		// (and the legacy fakescope copy) have matching formats, else D3D rejects the copy
@@ -687,10 +694,10 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 		bool svp_uav = (m_svp_dlss_built && rt_Color->fmt == D3DFMT_A16B16G16R16F);
 		if (RImplementation.o.dx11_hdr10) {
 			rt_secondVP = createUnique(r2_RT_secondVP, svp_out_w, svp_out_h, rt_Color->fmt, 1, svp_uav); //--#SM+#-- +SecondVP+
-			rt_ui_pda = createUnique(r2_RT_ui, w, h, D3DFMT_A2R10G10B10); // NOTE: this is a hack to use DXGI R10G10B10A2_UNORM
+			rt_ui_pda = createUnique(r2_RT_ui, dw, dh, D3DFMT_A2R10G10B10); // NOTE: this is a hack to use DXGI R10G10B10A2_UNORM
 		} else {
 			rt_secondVP = createUnique(r2_RT_secondVP, svp_out_w, svp_out_h, rt_Color->fmt, 1, svp_uav); //--#SM+#-- +SecondVP+
-			rt_ui_pda = createUnique(r2_RT_ui, w, h, D3DFMT_A8R8G8B8);
+			rt_ui_pda = createUnique(r2_RT_ui, dw, dh, D3DFMT_A8R8G8B8); // SSS24: copied from the swapchain
 		}
 
 		// pip mipped svp color source, feeds the near-blur prefilter so each sparse ring area-averages
@@ -709,25 +716,25 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 
 		// TODO: R11G11B10F? needs another horrible hack + cast + update to converter function
 		if (RImplementation.o.dx11_hdr10) {
-			rt_HDR10_HalfRes[0] = createUnique(r4_RT_HDR10_halfres0, w/2,  h/2,  D3DFMT_A16B16G16R16F);
-			rt_HDR10_HalfRes[1] = createUnique(r4_RT_HDR10_halfres1, w/2,  h/2,  D3DFMT_A16B16G16R16F);
+			rt_HDR10_HalfRes[0] = createUnique(r4_RT_HDR10_halfres0, dw/2,  dh/2,  D3DFMT_A16B16G16R16F);
+			rt_HDR10_HalfRes[1] = createUnique(r4_RT_HDR10_halfres1, dw/2,  dh/2,  D3DFMT_A16B16G16R16F);
 		}
 		// PDA, probably not ideal though
 // RT - KD
 		rt_sunshafts_0 = createUnique(r2_RT_sunshafts0, w, h, D3DFMT_A8R8G8B8);
 		rt_sunshafts_1 = createUnique(r2_RT_sunshafts1, w, h, D3DFMT_A8R8G8B8);
 
-		// RT Blur
-		rt_blur_h_2 = createUnique(r2_RT_blur_h_2, u32(w/2), u32(h/2), D3DFMT_A8R8G8B8);
-		rt_blur_2 = createUnique(r2_RT_blur_2, u32(w/2), u32(h/2), D3DFMT_A8R8G8B8);
+		// RT Blur ( SSS24: built after AA, display size; the fog scattering sizes its passes from the targets )
+		rt_blur_h_2 = createUnique(r2_RT_blur_h_2, u32(dw/2), u32(dh/2), D3DFMT_A8R8G8B8);
+		rt_blur_2 = createUnique(r2_RT_blur_2, u32(dw/2), u32(dh/2), D3DFMT_A8R8G8B8);
 
-		rt_blur_h_4 = createUnique(r2_RT_blur_h_4, u32(w/4), u32(h/4), D3DFMT_A8R8G8B8);
-		rt_blur_4 = createUnique(r2_RT_blur_4, u32(w/4), u32(h/4), D3DFMT_A8R8G8B8);
+		rt_blur_h_4 = createUnique(r2_RT_blur_h_4, u32(dw/4), u32(dh/4), D3DFMT_A8R8G8B8);
+		rt_blur_4 = createUnique(r2_RT_blur_4, u32(dw/4), u32(dh/4), D3DFMT_A8R8G8B8);
 
-		rt_blur_h_8 = createUnique(r2_RT_blur_h_8, u32(w/8), u32(h/8), D3DFMT_A8R8G8B8);
-		rt_blur_8 = createUnique(r2_RT_blur_8, u32(w/8), u32(h/8), D3DFMT_A8R8G8B8);
+		rt_blur_h_8 = createUnique(r2_RT_blur_h_8, u32(dw/8), u32(dh/8), D3DFMT_A8R8G8B8);
+		rt_blur_8 = createUnique(r2_RT_blur_8, u32(dw/8), u32(dh/8), D3DFMT_A8R8G8B8);
 
-		rt_pp_bloom = createUnique(r2_RT_pp_bloom, w, h, D3DFMT_A8R8G8B8);
+		rt_pp_bloom = createUnique(r2_RT_pp_bloom, dw, dh, D3DFMT_A8R8G8B8);
 
 		// Screen Space Shaders Stuff
 		rt_ssfx_taa = createUnique(r2_RT_ssfx_taa, w, h, D3DFMT_A16B16G16R16F, SampleCount); // Temp RT
@@ -760,21 +767,22 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 
 		if (RImplementation.o.ssfx_bloom)
 		{
-			rt_ssfx_bloom1 = createUnique(r2_RT_ssfx_bloom1, w / 2.0f, h / 2.0f, D3DFMT_A16B16G16R16F); // Bloom
+			// SSS24: the bloom chain runs after AA ( display size ), the emissive buffer is drawn with the scene
+			rt_ssfx_bloom1 = createUnique(r2_RT_ssfx_bloom1, dw / 2.0f, dh / 2.0f, D3DFMT_A16B16G16R16F); // Bloom
 			rt_ssfx_bloom_emissive = createUnique(r2_RT_ssfx_bloom_emissive, w, h, D3DFMT_A8R8G8B8, SampleCount); // Emissive
-			rt_ssfx_bloom_lens = createUnique(r2_RT_ssfx_bloom_lens, w / 4.0f, h / 4.0f, D3DFMT_A8R8G8B8); // Lens
+			rt_ssfx_bloom_lens = createUnique(r2_RT_ssfx_bloom_lens, dw / 4.0f, dh / 4.0f, D3DFMT_A8R8G8B8); // Lens
 
-			rt_ssfx_bloom_tmp2 = createUnique(r2_RT_ssfx_bloom_tmp2, w / 2.0f, h / 2.0f, D3DFMT_A16B16G16R16F); // Bloom / 2
-			rt_ssfx_bloom_tmp4 = createUnique(r2_RT_ssfx_bloom_tmp4, w / 4.0f, h / 4.0f, D3DFMT_A16B16G16R16F); // Bloom / 4
-			rt_ssfx_bloom_tmp8 = createUnique(r2_RT_ssfx_bloom_tmp8, w / 8.0f, h / 8.0f, D3DFMT_A16B16G16R16F); // Bloom / 8
-			rt_ssfx_bloom_tmp16 = createUnique(r2_RT_ssfx_bloom_tmp16, w / 16.0f, h / 16.0f, D3DFMT_A16B16G16R16F); // Bloom / 16
-			rt_ssfx_bloom_tmp32 = createUnique(r2_RT_ssfx_bloom_tmp32, w / 32.0f, h / 32.0f, D3DFMT_A16B16G16R16F); // Bloom / 32
-			rt_ssfx_bloom_tmp64 = createUnique(r2_RT_ssfx_bloom_tmp64, w / 64.0f, h / 64.0f, D3DFMT_A16B16G16R16F); // Bloom / 64
+			rt_ssfx_bloom_tmp2 = createUnique(r2_RT_ssfx_bloom_tmp2, dw / 2.0f, dh / 2.0f, D3DFMT_A16B16G16R16F); // Bloom / 2
+			rt_ssfx_bloom_tmp4 = createUnique(r2_RT_ssfx_bloom_tmp4, dw / 4.0f, dh / 4.0f, D3DFMT_A16B16G16R16F); // Bloom / 4
+			rt_ssfx_bloom_tmp8 = createUnique(r2_RT_ssfx_bloom_tmp8, dw / 8.0f, dh / 8.0f, D3DFMT_A16B16G16R16F); // Bloom / 8
+			rt_ssfx_bloom_tmp16 = createUnique(r2_RT_ssfx_bloom_tmp16, dw / 16.0f, dh / 16.0f, D3DFMT_A16B16G16R16F); // Bloom / 16
+			rt_ssfx_bloom_tmp32 = createUnique(r2_RT_ssfx_bloom_tmp32, dw / 32.0f, dh / 32.0f, D3DFMT_A16B16G16R16F); // Bloom / 32
+			rt_ssfx_bloom_tmp64 = createUnique(r2_RT_ssfx_bloom_tmp64, dw / 64.0f, dh / 64.0f, D3DFMT_A16B16G16R16F); // Bloom / 64
 
-			rt_ssfx_bloom_tmp32_2 = createUnique(r2_RT_ssfx_bloom_tmp32_2, w / 32.0f, h / 32.0f, D3DFMT_A16B16G16R16F); // Bloom / 32
-			rt_ssfx_bloom_tmp16_2 = createUnique(r2_RT_ssfx_bloom_tmp16_2, w / 16.0f, h / 16.0f, D3DFMT_A16B16G16R16F); // Bloom / 16
-			rt_ssfx_bloom_tmp8_2 = createUnique(r2_RT_ssfx_bloom_tmp8_2, w / 8.0f, h / 8.0f, D3DFMT_A16B16G16R16F); // Bloom / 8
-			rt_ssfx_bloom_tmp4_2 = createUnique(r2_RT_ssfx_bloom_tmp4_2, w / 4.0f, h / 4.0f, D3DFMT_A16B16G16R16F); // Bloom / 4
+			rt_ssfx_bloom_tmp32_2 = createUnique(r2_RT_ssfx_bloom_tmp32_2, dw / 32.0f, dh / 32.0f, D3DFMT_A16B16G16R16F); // Bloom / 32
+			rt_ssfx_bloom_tmp16_2 = createUnique(r2_RT_ssfx_bloom_tmp16_2, dw / 16.0f, dh / 16.0f, D3DFMT_A16B16G16R16F); // Bloom / 16
+			rt_ssfx_bloom_tmp8_2 = createUnique(r2_RT_ssfx_bloom_tmp8_2, dw / 8.0f, dh / 8.0f, D3DFMT_A16B16G16R16F); // Bloom / 8
+			rt_ssfx_bloom_tmp4_2 = createUnique(r2_RT_ssfx_bloom_tmp4_2, dw / 4.0f, dh / 4.0f, D3DFMT_A16B16G16R16F); // Bloom / 4
 		}
 
 		rt_ssfx_volumetric = createUnique(r2_RT_ssfx_volumetric, w / 8.0f, h / 8.0f, D3DFMT_A16B16G16R16F); // Volumetric
@@ -796,14 +804,23 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 		if (RImplementation.o.ssfx_core)
 		{
 			// UAV so DLSS can write the upscaled image straight into it
-			rt_scene_aa = createUnique(r2_RT_scene_aa, w, h, rt_Generic_0->fmt, 1, isMain);
-			rt_scene_final = createUnique(r2_RT_scene_final, w, h, (RImplementation.o.dx10_msaa ? rt_Generic : rt_Color)->fmt);
-			rt_upscaled_pos = createUnique(r2_RT_upscaled_pos, w, h, D3DFMT_A16B16G16R16F);
-			rt_upscaled_heat = createUnique(r2_RT_upscaled_heat, w, h, D3DFMT_A8R8G8B8);
+			rt_scene_aa = createUnique(r2_RT_scene_aa, dw, dh, rt_Generic_0->fmt, 1, isMain);
+			rt_scene_final = createUnique(r2_RT_scene_final, dw, dh, (RImplementation.o.dx10_msaa ? rt_Generic : rt_Color)->fmt);
+			rt_upscaled_pos = createUnique(r2_RT_upscaled_pos, dw, dh, D3DFMT_A16B16G16R16F);
+			rt_upscaled_heat = createUnique(r2_RT_upscaled_heat, dw, dh, D3DFMT_A8R8G8B8);
 			if (isMain)
 			{
-				rt_dlss_depth = createUnique("$user$dlss_depth", w, h, D3DFMT_D24S8);
-				rt_upscaler_tmp = createUnique("$user$upscaler_tmp", w, h, rt_Generic_0->fmt);
+				rt_dlss_depth = createUnique("$user$dlss_depth", w, h, D3DFMT_D24S8); // render size, a copy of the scene depth
+				rt_upscaler_tmp = createUnique("$user$upscaler_tmp", dw, dh, rt_Generic_0->fmt);
+			}
+			// SSS24: position / heat upscaling histories and the ( still empty ) full resolution HUD data
+			if (m_upscaled)
+			{
+				rt_upscaled_pos_pv = createUnique(r2_RT_upscaled_pos_pv, dw, dh, D3DFMT_A16B16G16R16F);
+				rt_upscaled_data_pv = createUnique(r2_RT_upscaled_data_pv, dw, dh, D3DFMT_A8R8G8B8);
+				rt_ssfx_taa_data = createUnique(r2_RT_ssfx_taa_data, 1, 1, D3DFMT_A16B16G16R16F);
+				FLOAT zero[4] = { 0.f, 0.f, 0.f, 0.f };
+				HW.pContext->ClearRenderTargetView(rt_ssfx_taa_data->pRT, zero);
 			}
 		}
 
@@ -850,6 +867,8 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 	s_ssfx_fog_scattering.create(b_ssfx_fog_scattering, "ssfx_fog_scattering"); // SSS Fog Scattering
 	s_ssfx_motion_blur.create(b_ssfx_motion_blur, "ssfx_motion_blur"); // SSS Motion Blur
 	s_ssfx_taa.create(b_ssfx_taa, "ssfx_taa"); // SSS TAA
+	if (b_ssfx_upscale)
+		s_ssfx_upscale.create(b_ssfx_upscale, "ssfx_upscale"); // SSS24 position upscaling + stretch
 	s_ssfx_rain.create(b_ssfx_rain, "ssfx_rain"); // SSS Rain
 	s_ssfx_bloom.create(b_ssfx_bloom, "ssfx_bloom"); // SSS Bloom
 	s_ssfx_bloom_lens.create(b_ssfx_bloom_lens, "ssfx_bloom_flares"); // SSS Bloom Lens flare
@@ -1116,15 +1135,17 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 	{
 		u32 w = 0;
 		u32 h = 0;
+		// SSS24: the main target's own size ( lower than the device when upscaled ), the SVP keeps the device size
+		const u32 sw = (name == nullptr) ? Width : Device.dwWidth, sh = (name == nullptr) ? Height : Device.dwHeight;
 		if (RImplementation.o.ssao_half_data)
 		{
-			w = Device.dwWidth / 2;
-			h = Device.dwHeight / 2;
+			w = sw / 2;
+			h = sh / 2;
 		}
 		else
 		{
-			w = Device.dwWidth;
-			h = Device.dwHeight;
+			w = sw;
+			h = sh;
 		}
 
 		D3DFORMAT fmt = HW.Caps.id_vendor == 0x10DE ? D3DFMT_R32F : D3DFMT_R16F;
@@ -1153,7 +1174,7 @@ CRenderTarget::CRenderTarget(LPCSTR name, u32 width, u32 height)
 	// HDAO
 	if (RImplementation.o.ssao_hdao && RImplementation.o.ssao_ultra)
 	{
-		u32 w = Device.dwWidth, h = Device.dwHeight;
+		u32 w = (name == nullptr) ? Width : Device.dwWidth, h = (name == nullptr) ? Height : Device.dwHeight; // SSS24: main target size
 		rt_ssao_temp = createUnique(r2_RT_ssao_temp, w, h, D3DFMT_R16F, 1, true);
 		s_hdao_cs.create(b_hdao_cs, "r2\\ssao");
 		if (RImplementation.o.dx10_msaa)
@@ -1581,6 +1602,7 @@ CRenderTarget::~CRenderTarget()
 	xr_delete(b_ssfx_fog_scattering); // SSS MotionBlur
 	xr_delete(b_ssfx_motion_blur); // SSS MotionBlur
 	xr_delete(b_ssfx_taa); // SSS TAA
+	xr_delete(b_ssfx_upscale); // SSS24 position upscaling + stretch
 	xr_delete(b_ssfx_rain); // SSS Rain
 	xr_delete(b_ssfx_water_blur); // SSS Water Blur
 	xr_delete(b_ssfx_bloom); // SSS Bloom

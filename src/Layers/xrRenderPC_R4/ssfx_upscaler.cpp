@@ -9,11 +9,14 @@
 #include "../../3rd party/streamline/include/sl_dlss.h"
 #include "../../3rd party/streamline/include/sl_reflex.h"
 #include "../../xrEngine/sl_latency.h"
+#include "../xrRenderDX10/StateManager/dx10SamplerStateCache.h"
 
 // SSS24 upscalers: NVIDIA DLSS ( Streamline ), reconstructed from the SSS24 RC2 exe
 // ( Streamline init 140a87770, options 140a769d0, evaluate 140a76af0, jitter table at Device+0x64 ).
-// First step: DLSS runs at the native resolution ( DLAA ) in place of the TAA, the render/display split
-// for the quality modes comes later, so every resolution token is treated as DLAA for now.
+// DLSS replaces the TAA on the main view. DLAA keeps one resolution; the quality modes build the main target
+// at a lower render size ( SSS device 1400395f0 / 14003a170: 0.666, 0.58, 0.5, 0.33 of the display ) and
+// switch to the display size after the upscaler ( CRenderTarget::ssfx_size_mode ), the position and heat
+// buffers are upscaled for the passes after it ( SSS POS_UPSCALE, blender 140b711c0 ).
 // Reflex / PC Latency ( SSS 140a766a0, 140a66620, markers in CRenderDevice::on_idle 140031320 and
 // CLevel::OnFrame 1401a5630 ): the engine calls the sl_latency hooks, installed here once Streamline is up.
 
@@ -44,6 +47,7 @@ namespace
 	sl::FrameToken* s_frame = nullptr; // this frame's token ( sl_latency::new_frame at the start of on_idle )
 	const sl::ViewportHandle s_viewport(0u);
 	u32 s_reflex_mode = u32(-1); // last ssfx_reflex value handed to Streamline
+	u32 s_target_token = 0; // ssfx_upscaler_resolution the main target was built with ( 0 = native )
 
 	// last options handed to DLSS, re-sent when any of them changes
 	struct AppliedOptions
@@ -135,10 +139,110 @@ namespace
 		}
 	}
 
+	// render scale of a ssfx_upscaler_resolution token ( SSS 14003a170 )
+	float render_scale(u32 token)
+	{
+		switch (token)
+		{
+		case 2: return 0.666f; // quality
+		case 3: return 0.58f; // balanced
+		case 4: return 0.5f; // performance
+		case 5: return 0.33f; // ultra performance
+		default: return 1.f; // dlaa / native
+		}
+	}
+
+	// the resolution token a main target built now would get
+	u32 wanted_token()
+	{
+		if (!s_dlss_ok || ps_ssfx_upscaler != UPSCALER_DLSS || !RImplementation.o.ssfx_core || RImplementation.o.dx10_msaa)
+			return 0;
+		return render_scale(ps_ssfx_upscaler_resolution) < 1.f ? ps_ssfx_upscaler_resolution : 0;
+	}
+
 	sl::DLSSMode dlss_mode()
 	{
-		// the render/display split is not in yet, every quality runs at the native resolution
-		return sl::DLSSMode::eDLAA;
+		// follows the main target's render size, a changed token only applies once the targets are rebuilt
+		switch (s_target_token)
+		{
+		case 2: return sl::DLSSMode::eMaxQuality;
+		case 3: return sl::DLSSMode::eBalanced;
+		case 4: return sl::DLSSMode::eMaxPerformance;
+		case 5: return sl::DLSSMode::eUltraPerformance;
+		default: return sl::DLSSMode::eDLAA;
+		}
+	}
+
+	// position / heat upscaling and the plain stretch ( SSS blender 140b711c0 elements 3 and 4 )
+	class CBlender_ssfx_upscale : public IBlender
+	{
+	public:
+		virtual LPCSTR getComment() { return "SSS24 upscaling"; }
+		virtual BOOL canBeDetailed() { return FALSE; }
+		virtual BOOL canBeLMAPped() { return FALSE; }
+
+		CBlender_ssfx_upscale() { description.CLS = 0; }
+		virtual ~CBlender_ssfx_upscale() {}
+
+		virtual void Compile(CBlender_Compile& C)
+		{
+			IBlender::Compile(C);
+			switch (C.iElement)
+			{
+			case 0: // position + heat at the display resolution, temporally accumulated
+				C.r_Pass("stub_screen_space", "ssfx_upscale_pos", FALSE, FALSE, FALSE);
+				C.r_dx10Texture("s_pos", r2_RT_P);
+				C.r_dx10Texture("s_pos_prev", r2_RT_upscaled_pos_pv);
+				C.r_dx10Texture("s_heat", r2_RT_heat);
+				C.r_dx10Texture("s_data_prev", r2_RT_upscaled_data_pv);
+				C.r_dx10Texture("s_mv", r2_RT_ssfx_motion_vectors);
+				C.r_dx10Texture("s_fullres_hud", r2_RT_ssfx_taa_data);
+				C.r_dx10Sampler("smp_base");
+				C.r_dx10Sampler("smp_nofilter");
+				C.r_dx10Sampler("smp_rtlinear");
+				C.r_dx10Sampler("smp_point");
+				C.r_End();
+				break;
+			case 1: // the result becomes the next frame's history
+				C.r_Pass("stub_screen_space", "ssfx_upscale_pos_pack", FALSE, FALSE, FALSE);
+				C.r_dx10Texture("s_pos", r2_RT_upscaled_pos);
+				C.r_dx10Texture("s_data", r2_RT_upscaled_heat);
+				C.r_dx10Sampler("smp_nofilter");
+				C.r_End();
+				break;
+			case 2: // first frame: the histories start from the current render size buffers
+				C.r_Pass("stub_screen_space", "ssfx_upscale_pos_pack", FALSE, FALSE, FALSE);
+				C.r_dx10Texture("s_pos", r2_RT_P);
+				C.r_dx10Texture("s_data", r2_RT_heat);
+				C.r_dx10Sampler("smp_nofilter");
+				C.r_End();
+				break;
+			case 3: // the aliased image stretched to the display size ( sharpening shader at zero strength )
+				C.r_Pass("stub_screen_space", "ssfx_taa_sharp", FALSE, FALSE, FALSE);
+				C.r_dx10Texture("s_current", r2_RT_generic0);
+				C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
+				C.r_dx10Sampler("smp_point");
+				C.r_dx10Sampler("smp_linear");
+				C.r_dx10Sampler("smp_rtlinear");
+				C.r_dx10Sampler("smp_nofilter");
+				C.r_End();
+				break;
+			}
+		}
+	};
+
+	// fullscreen quad in the display pixels, stub_screen_space maps it with screen_res ( Device size )
+	u32 fill_quad(const ref_geom& geom, float w, float h)
+	{
+		u32 offset = 0;
+		const u32 C = color_rgba(0, 0, 0, 255);
+		FVF::TL* pv = (FVF::TL*)RCache.Vertex.Lock(4, geom->vb_stride, offset);
+		pv->set(0, h, EPS_S, 1.0f, C, 0.0f, 1.0f); pv++;
+		pv->set(0, 0, EPS_S, 1.0f, C, 0.0f, 0.0f); pv++;
+		pv->set(w, h, EPS_S, 1.0f, C, 1.0f, 1.0f); pv++;
+		pv->set(w, 0, EPS_S, 1.0f, C, 1.0f, 0.0f); pv++;
+		RCache.Vertex.Unlock(4, geom->vb_stride);
+		return offset;
 	}
 
 	template <typename T>
@@ -431,6 +535,29 @@ Fvector2 jitter(u32 frame)
 	return s_jitter[frame % 72];
 }
 
+void render_size(u32 display_w, u32 display_h, u32& w, u32& h)
+{
+	s_target_token = wanted_token();
+	w = display_w;
+	h = display_h;
+	if (!s_target_token)
+		return;
+	const float scale = render_scale(s_target_token);
+	w = _max(u32(float(display_w) * scale), 64u);
+	h = _max(u32(float(display_h) * scale), 64u);
+	Msg("- UPSCALING : Resolution [ %ux%u ] -> [ %ux%u ]", display_w, display_h, w, h);
+}
+
+bool target_outdated()
+{
+	return s_sl_ready && wanted_token() != s_target_token;
+}
+
+IBlender* create_blender()
+{
+	return xr_new<CBlender_ssfx_upscale>();
+}
+
 void begin_frame()
 {
 	if (!s_sl_ready)
@@ -441,6 +568,13 @@ void begin_frame()
 	apply_reflex(false);
 	if (active())
 		apply_options(false);
+
+	// SSS automatic mip bias ( 140a92b80 ): log2( render / display ) - 1 while DLSS runs, r__tf_mipbias otherwise
+	float bias = ps_r__tf_Mipbias;
+	const CRenderTarget* T = RImplementation.TargetMain;
+	if (active() && ps_ssfx_upscaler_automipmap && T && T->DisplayWidth)
+		bias = log2f(float(T->Width) / float(T->DisplayWidth)) - 1.f;
+	SSManager.SetMipLODBias(bias);
 }
 
 bool evaluate(CRenderTarget* T)
@@ -543,26 +677,102 @@ void CRenderTarget::phase_ssfx_upscaler_sharp()
 	if (ps_ssfx_upscaler_sharp <= 0.f || !rt_scene_aa || !rt_upscaler_tmp)
 		return;
 
-	u32 Offset = 0;
-	const u32 C = color_rgba(0, 0, 0, 255);
 	const float w = float(rt_scene_aa->dwWidth);
 	const float h = float(rt_scene_aa->dwHeight);
 
 	HW.pContext->CopyResource(rt_upscaler_tmp->pSurface, rt_scene_aa->pSurface);
 
+	set_viewport_size(HW.pContext, w, h);
 	u_setrt(rt_scene_aa, nullptr, nullptr, nullptr);
 	RCache.set_CullMode(CULL_NONE);
 	RCache.set_Stencil(FALSE);
 
-	FVF::TL* pv = (FVF::TL*)RCache.Vertex.Lock(4, g_combine->vb_stride, Offset);
-	pv->set(0, h, EPS_S, 1.0f, C, 0.0f, 1.0f); pv++;
-	pv->set(0, 0, EPS_S, 1.0f, C, 0.0f, 0.0f); pv++;
-	pv->set(w, h, EPS_S, 1.0f, C, 1.0f, 1.0f); pv++;
-	pv->set(w, 0, EPS_S, 1.0f, C, 1.0f, 0.0f); pv++;
-	RCache.Vertex.Unlock(4, g_combine->vb_stride);
+	const u32 Offset = ssfx_upscaler::fill_quad(g_combine, w, h);
 
 	RCache.set_Element(s_ssfx_taa->E[3]);
 	RCache.set_c("taa_setup", 0.f, 0.f, ps_ssfx_upscaler_sharp, 0.f);
+	RCache.set_Geometry(g_combine);
+	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+}
+
+// SSS24: the main target renders at its own size up to the upscaler, the display size after it ( post process,
+// UI, present ). Only the device size, the base RT / depth and the viewport change, nothing else of SetActive.
+void CRenderTarget::ssfx_size_mode(bool display)
+{
+	if (!m_upscaled || !rt_baseRT || !rt_baseZB)
+		return;
+
+	const u32 w = display ? DisplayWidth : Width;
+	const u32 h = display ? DisplayHeight : Height;
+	Device.dwWidth = w;
+	Device.dwHeight = h;
+	Device.fWidth_2 = float(w >> 1);
+	Device.fHeight_2 = float(h >> 1);
+
+	// the members keep the render size pair, SetActive re-binds them for the scene passes
+	HW.pBaseRT = display ? HW.secret_pBaseRT : baseRT;
+	HW.pBaseZB = display ? HW.secret_pBaseZB : baseZB;
+	dwWidth = w;
+	dwHeight = h;
+
+	set_viewport_size(HW.pContext, float(w), float(h));
+	RCache.set_RT(HW.pBaseRT, 0);
+	RCache.set_RT(nullptr, 1);
+	RCache.set_RT(nullptr, 2);
+	RCache.set_RT(nullptr, 3);
+	RCache.set_ZB(HW.pBaseZB);
+}
+
+// SSS24: position and heat at the display size for the passes after the upscaler ( SSS POS_UPSCALE )
+void CRenderTarget::phase_ssfx_upscale_pos()
+{
+	if (!m_upscaled || !b_ssfx_upscale || !rt_upscaled_pos || !rt_upscaled_heat || !rt_upscaled_pos_pv || !rt_upscaled_data_pv)
+		return;
+
+	PIX_EVENT(SSFX_UPSCALE_POS);
+	const float w = float(rt_upscaled_pos->dwWidth);
+	const float h = float(rt_upscaled_pos->dwHeight);
+	const u32 Offset = ssfx_upscaler::fill_quad(g_combine, w, h);
+
+	set_viewport_size(HW.pContext, w, h);
+	RCache.set_CullMode(CULL_NONE);
+	RCache.set_Stencil(FALSE);
+	RCache.set_Geometry(g_combine);
+
+	if (m_upscale_seed)
+	{
+		u_setrt(rt_upscaled_pos_pv, rt_upscaled_data_pv, nullptr, nullptr);
+		RCache.set_Element(s_ssfx_upscale->E[2]);
+		RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+		m_upscale_seed = false;
+	}
+
+	u_setrt(rt_upscaled_pos, rt_upscaled_heat, nullptr, nullptr);
+	RCache.set_Element(s_ssfx_upscale->E[0]);
+	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+
+	u_setrt(rt_upscaled_pos_pv, rt_upscaled_data_pv, nullptr, nullptr);
+	RCache.set_Element(s_ssfx_upscale->E[1]);
+	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+}
+
+// SSS24: the render size image stretched into scene_aa, for frames DLSS did not upscale ( disabled until the
+// targets are rebuilt, an evaluation error, the menu )
+void CRenderTarget::phase_ssfx_upscale_stretch()
+{
+	if (!b_ssfx_upscale || !rt_scene_aa)
+		return;
+
+	const float w = float(rt_scene_aa->dwWidth);
+	const float h = float(rt_scene_aa->dwHeight);
+	const u32 Offset = ssfx_upscaler::fill_quad(g_combine, w, h);
+
+	set_viewport_size(HW.pContext, w, h);
+	u_setrt(rt_scene_aa, nullptr, nullptr, nullptr);
+	RCache.set_CullMode(CULL_NONE);
+	RCache.set_Stencil(FALSE);
+	RCache.set_Element(s_ssfx_upscale->E[3]);
+	RCache.set_c("taa_setup", 0.f, 0.f, 0.f, 0.f);
 	RCache.set_Geometry(g_combine);
 	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
 }

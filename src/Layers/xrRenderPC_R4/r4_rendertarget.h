@@ -89,6 +89,7 @@ public:
 	IBlender* b_ssfx_fog_scattering;
 	IBlender* b_ssfx_motion_blur;
 	IBlender* b_ssfx_taa;
+	IBlender* b_ssfx_upscale; // SSS24: position / heat upscaling + plain stretch ( main target, split resolution only )
 	IBlender* b_ssfx_rain;
 	IBlender* b_ssfx_water_blur;
 	IBlender* b_ssfx_bloom_downsample;
@@ -243,6 +244,18 @@ public:
 	ref_rt rt_dlss_depth; // SSS24: scene depth copy DLSS can read ( main target only )
 	ref_rt rt_upscaler_tmp; // SSS24: copy of the upscaled image for the sharpening pass
 	void phase_ssfx_upscaler_sharp(); // SSS24: sharpening after the upscaler
+
+	// SSS24 upscaling with a lower render resolution ( DLSS quality modes, main target only ):
+	// everything up to the upscaler renders at Width x Height into the target's own base RT / depth,
+	// everything after it at DisplayWidth x DisplayHeight into the swapchain
+	ref_rt rt_upscaled_pos_pv; // position history for the position upscaling
+	ref_rt rt_upscaled_data_pv; // heat / speed history for the position upscaling
+	ref_rt rt_ssfx_taa_data; // full resolution HUD data ( not rendered yet, stays clear )
+	ref_shader s_ssfx_upscale;
+	bool m_upscale_seed = true; // first upscaled frame, the histories start from the current frame
+	void ssfx_size_mode(bool display); // switch the device size, base RT / depth and viewport
+	void phase_ssfx_upscale_pos(); // position + heat at the display resolution ( SSS POS_UPSCALE )
+	void phase_ssfx_upscale_stretch(); // rt_Generic_0 stretched into rt_scene_aa when nothing upscaled it
 
 	// SSS24: post effects render into post_dest and copy back into post_src
 	ref_rt& ssfx_post_dest();
@@ -510,9 +523,13 @@ public:
 	// dims at creation, the SVP target is square so svpCamera reads these for its aspect
 	const u32 Width;
 	const u32 Height;
+	// SSS24: output size after the upscaler, same as Width x Height unless the main target renders lower
+	const u32 DisplayWidth;
+	const u32 DisplayHeight;
+	const bool m_upscaled;
 
 	CRenderTarget();
-	CRenderTarget(LPCSTR name, u32 width, u32 height);
+	CRenderTarget(LPCSTR name, u32 width, u32 height, u32 display_width = 0, u32 display_height = 0);
 	~CRenderTarget();
 	void SetActive(bool force = false);
 	void accum_point_geom_create();
