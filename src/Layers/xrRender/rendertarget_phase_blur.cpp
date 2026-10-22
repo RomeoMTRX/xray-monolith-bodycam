@@ -942,9 +942,11 @@ void CRenderTarget::phase_ssfx_fog_scattering()
 	
 	for (int blurp = 0; blurp < 2; blurp++)
 	{
-		int SampleScale = 1 << (2 - blurp); // 0 = 4 -> 1 = 2
-
-		set_viewport_size(HW.pContext, w / SampleScale, h / SampleScale);
+		// 0 = blur_4 ( 1/4 ) -> 1 = blur_2 ( 1/2 )
+		// SSS24: the blur targets follow the display size when the scene renders lower ( upscaling ),
+		// the pass fills them whole: viewport and texel size from the target itself
+		const float vp_w = float((*rt_Blur[blurp])->dwWidth), vp_h = float((*rt_Blur[blurp])->dwHeight);
+		set_viewport_size(HW.pContext, vp_w, vp_h);
 
 		u_setrt(*rt_Blur[blurp], 0, 0, NULL);
 		RCache.set_CullMode(CULL_NONE);
@@ -960,7 +962,7 @@ void CRenderTarget::phase_ssfx_fog_scattering()
 
 		// Draw COLOR
 		RCache.set_Element(s_ssfx_fog_scattering->E[2 + blurp]);
-		RCache.set_c("blur_setup", w / SampleScale, h / SampleScale, 0, 0);
+		RCache.set_c("blur_setup", vp_w, vp_h, 0, 0);
 		RCache.set_Geometry(g_combine);
 		RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
 	}

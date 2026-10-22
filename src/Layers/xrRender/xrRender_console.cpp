@@ -701,6 +701,26 @@ public:
 	}
 };
 
+#if defined(USE_DX11)
+#include "../xrRenderPC_R4/ssfx_upscaler.h"
+// SSS24: the main target's render size follows ssfx_upscaler / ssfx_upscaler_resolution, the targets are
+// rebuilt like the SSS exe does it ( console 140a66240 / 140a66360: vid_restart when the size has to change )
+class CCC_ssfx_upscaler_token : public CCC_Token
+{
+public:
+	CCC_ssfx_upscaler_token(LPCSTR N, u32* V, xr_token* T) : CCC_Token(N, V, T) {}
+
+	virtual void Execute(LPCSTR args)
+	{
+		CCC_Token::Execute(args);
+		if (HW.pDevice && ssfx_upscaler::target_outdated())
+			Console->Execute("vid_restart");
+	}
+};
+#else
+typedef CCC_Token CCC_ssfx_upscaler_token;
+#endif
+
 class CCC_tf_MipBias : public CCC_Float
 {
 public:
@@ -1797,8 +1817,8 @@ void xrRender_initconsole()
 	CMD4(CCC_Vector3, "ssfx_cascades_delay", &ps_ssfx_cascades_delay, Fvector3().set(0, 0, 0), Fvector3().set(5, 5, 5));
 	CMD4(CCC_Integer, "trees_trunk_alphamask", &ps_r__trees_trunk_alphamask, 0, 1);
 	CMD4(CCC_Integer, "trees_branches_cullmode_none", &ps_r__trees_branches_cullmode_none, 0, 1);
-	CMD3(CCC_Token, "ssfx_upscaler", &ps_ssfx_upscaler, ssfx_upscaler_token);
-	CMD3(CCC_Token, "ssfx_upscaler_resolution", &ps_ssfx_upscaler_resolution, ssfx_upscaler_resolution_token);
+	CMD3(CCC_ssfx_upscaler_token, "ssfx_upscaler", &ps_ssfx_upscaler, ssfx_upscaler_token);
+	CMD3(CCC_ssfx_upscaler_token, "ssfx_upscaler_resolution", &ps_ssfx_upscaler_resolution, ssfx_upscaler_resolution_token);
 	CMD3(CCC_Token, "ssfx_dlss_preset", &ps_ssfx_dlss_preset, ssfx_dlss_preset_token);
 	CMD3(CCC_Token, "ssfx_reflex", &ps_ssfx_reflex, ssfx_reflex_token);
 	CMD4(CCC_Float, "ssfx_upscaler_sharp", &ps_ssfx_upscaler_sharp, 0.f, 2.f);
