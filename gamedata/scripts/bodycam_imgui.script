@@ -312,6 +312,63 @@ local feature_tabs = {
         },
     },
     {
+        name = "Tarkov Handling",
+        toggle = { "tarkov_handling_enable", "Enabled" },
+        sections = {
+            {
+                name = "Feel",
+                settings = {
+                    { "tarkov_strength", "Overall Strength" },
+                    { "tarkov_frequency", "Spring Frequency (Hz)" },
+                    { "tarkov_damping", "Spring Damping" },
+                    { "tarkov_ads_scale", "ADS Scale" },
+                },
+            },
+            {
+                name = "Mouse Drag",
+                settings = {
+                    { "tarkov_drag_strength", "Drag Strength" },
+                    { "tarkov_drag_full_speed", "Full Drag Turn Speed (deg/s)" },
+                    { "tarkov_drag_yaw", "Yaw Lag (deg)" },
+                    { "tarkov_drag_pitch", "Pitch Lag (deg)" },
+                    { "tarkov_drag_roll", "Roll Into Turn (deg)" },
+                    { "tarkov_drag_shift_x", "Sideways Shift (m)" },
+                    { "tarkov_drag_shift_y", "Vertical Shift (m)" },
+                },
+            },
+            {
+                name = "Walk Sway",
+                settings = {
+                    { "tarkov_walk_strength", "Walk Strength" },
+                    { "tarkov_walk_x", "Sideways Swing (m)" },
+                    { "tarkov_walk_y", "Up and Down Swing (m)" },
+                    { "tarkov_walk_roll", "Roll Swing (deg)" },
+                    { "tarkov_walk_yaw", "Yaw Swing (deg)" },
+                    { "tarkov_walk_pitch", "Pitch Swing (deg)" },
+                    { "tarkov_walk_speed", "Full Sway Speed (m/s)" },
+                    { "tarkov_crouch_scale", "Crouch Scale" },
+                    { "tarkov_sprint_scale", "Sprint Scale" },
+                },
+            },
+            {
+                name = "Movement Lean",
+                settings = {
+                    { "tarkov_strafe_shift", "Strafe Shift (m)" },
+                    { "tarkov_strafe_roll", "Strafe Roll (deg)" },
+                    { "tarkov_forward_dip", "Forward Dip (deg)" },
+                    { "tarkov_forward_pull", "Forward Pull Back (m)" },
+                },
+            },
+            {
+                name = "Weapon Weight",
+                settings = {
+                    { "tarkov_weight_influence", "Weight Influence" },
+                    { "tarkov_reference_weight", "Reference Weight (kg)" },
+                },
+            },
+        },
+    },
+    {
         name = "Footstep Camera",
         toggle = { "footstep_camera_enable", "Enabled" },
         sections = {
@@ -490,6 +547,33 @@ local binding_descriptions = {
     hip_camera_soft_follow_yaw = "Width of the horizontal transition between the hip-fire deadzone and full following.",
     hip_camera_soft_follow_pitch = "Width of the vertical transition between the hip-fire deadzone and full following.",
     hip_camera_inner_zone_response = "Share of mouse movement passed to the camera while the hip-fire aim is inside the deadzone.",
+    tarkov_handling_enable = "Hangs the gun and both hands on one soft spring, like Escape from Tarkov: mouse turns drag the gun behind the view and it swings past when you stop, every stride swings it through a figure eight, and heavier weapons swing wider and settle slower. Adds to the weapon's own animations.",
+    tarkov_strength = "Multiplier on every Tarkov Handling motion. 0 removes it.",
+    tarkov_frequency = "How fast the spring swings back, for a weapon of the reference weight. Lower is floatier and slower; heavier weapons go lower automatically.",
+    tarkov_damping = "How firmly the spring settles. 1 settles without swinging past; lower swings past further and wobbles longer.",
+    tarkov_ads_scale = "Share of all Tarkov Handling motion kept while aiming down sights.",
+    tarkov_drag_strength = "Multiplier on the mouse drag.",
+    tarkov_drag_full_speed = "Turn speed, in degrees per second, that reaches the full drag. Lower makes slow turns drag more.",
+    tarkov_drag_yaw = "Angle the gun trails a sideways turn, in degrees.",
+    tarkov_drag_pitch = "Angle the gun trails an up or down turn, in degrees.",
+    tarkov_drag_roll = "Angle the gun rolls into a sideways turn, in degrees. Negative rolls away from the turn.",
+    tarkov_drag_shift_x = "Distance the gun slides sideways behind a turn, in metres.",
+    tarkov_drag_shift_y = "Distance the gun drops below the view when you look up (and rises when you look down), in metres.",
+    tarkov_walk_strength = "Multiplier on the walking figure eight.",
+    tarkov_walk_x = "Distance the gun swings sideways once per stride, in metres.",
+    tarkov_walk_y = "Distance the gun dips at every footfall and rises between them, in metres. The spring softens it, so the visible motion is about half.",
+    tarkov_walk_roll = "Angle the gun rolls with the sideways swing, in degrees.",
+    tarkov_walk_yaw = "Angle the gun turns with the sideways swing, in degrees.",
+    tarkov_walk_pitch = "Angle the gun pitches with each footfall, in degrees.",
+    tarkov_walk_speed = "Speed, in metres per second, at which the walk sway is full. Slower walking sways less.",
+    tarkov_crouch_scale = "Share of the walk sway kept while crouching.",
+    tarkov_sprint_scale = "Share of the walk sway kept while sprinting. 0 leaves sprinting to the sprint animation.",
+    tarkov_strafe_shift = "Distance the gun lags sideways against a strafe at full walk speed, in metres. It swings past when you stop.",
+    tarkov_strafe_roll = "Angle the gun rolls toward the strafe direction at full walk speed, in degrees.",
+    tarkov_forward_dip = "Angle the muzzle dips while walking forward (and rises walking back), in degrees.",
+    tarkov_forward_pull = "Distance the gun pulls back toward you while walking forward, in metres.",
+    tarkov_weight_influence = "How much the weapon's weight, attachments and magazine included, changes the handling. 0 handles every weapon like the reference weight.",
+    tarkov_reference_weight = "Weight, in kilograms, that handles with the base spring and drag. Lighter weapons are snappier, heavier ones swing wider and slower.",
 }
 for variation = 1, 4 do
     binding_descriptions["classic_regrip_" .. variation .. "_intensity"] = string.format(
