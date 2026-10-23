@@ -9,6 +9,7 @@
 #include "IKLimbsController.h"
 #include "GameObject.h"
 #include "../../xrServerEntities/script_engine.h"
+#include "script_game_object.h"
 
 #ifdef	DEBUG
 BOOL debug_step_info = FALSE;
@@ -221,9 +222,20 @@ void CStepManager::update(bool b_hud_view)
 					}
 					else
 					{
-						m_step_sound.play_next(mtl_pair, m_object, m_step_info.params.step[i].power, b_hud_view);
+						// JR: NPC / monster step hook. _G.CNPC__FootstepCallback(obj, ground_material, power) may play
+						// its own step sound and return false to skip the engine's material-pair step sound.
+						bool play_engine_step = true;
+						::luabind::functor<bool> npc_funct;
+						if (ai().script_engine().functor("_G.CNPC__FootstepCallback", npc_funct))
+						{
+							SGameMtl* ground = GMLib.GetMaterialByIdx(m_object->material().last_material_idx());
+							play_engine_step = npc_funct(object->lua_game_object(), ground ? *ground->m_Name : "default",
+							                             m_step_info.params.step[i].power);
+						}
+						if (play_engine_step)
+							m_step_sound.play_next(mtl_pair, m_object, m_step_info.params.step[i].power, b_hud_view);
                      object->FootStepCallback(m_step_info.params.step[i].power, b_play_sound, is_on_ground(), b_hud_view);
-					}	
+					}
 				}
 
 				// Играть партиклы
