@@ -1377,6 +1377,7 @@ CApplication::CApplication()
 
 	// Font
 	pFontSystem = NULL;
+	pFontLoadTitle = NULL;
 
 	// Register us
 	Device.seqFrame.Add(this, REG_PRIORITY_HIGH + 1000);
@@ -1391,6 +1392,7 @@ CApplication::CApplication()
 	ls_header[0] = '\0';
 	ls_tip_number[0] = '\0';
 	ls_tip[0] = '\0';
+	ls_level[0] = '\0';
 }
 
 CApplication::~CApplication()
@@ -1399,6 +1401,7 @@ CApplication::~CApplication()
 
 	// font
 	xr_delete(pFontSystem);
+	xr_delete(pFontLoadTitle);
 
 	Device.seqFrameMT.Remove(&SoundProcessor);
 	Device.seqFrame.Remove(&SoundProcessor);
@@ -1476,6 +1479,7 @@ void CApplication::OnEvent(EVENT E, u64 P1, u64 P2)
 		ls_header[0] = '\0';
 		ls_tip_number[0] = '\0';
 		ls_tip[0] = '\0';
+		ls_level[0] = '\0';
 
 		if (g_pGameLevel)
 		{
@@ -1545,6 +1549,8 @@ void CApplication::LoadBegin()
 
 #ifndef DEDICATED_SERVER
 		_InitializeFont(pFontSystem, "ui_font_letterica18_russian", 0);
+		_InitializeFont(pFontLoadTitle, pSettings->section_exist("ui_font_letter_25") ? "ui_font_letter_25" : "ui_font_letterica18_russian", 0);
+		ls_level[0] = '\0';
 
 		m_pRender->LoadBegin();
 #endif
@@ -1605,6 +1611,11 @@ void CApplication::LoadTitleInt(LPCSTR str1, LPCSTR str2, LPCSTR str3)
 	xr_strcpy(ls_tip_number, str2);
 	xr_strcpy(ls_tip, str3);
 	// LoadDraw ();
+}
+
+void CApplication::LoadLevelName(LPCSTR name)
+{
+	xr_strcpy(ls_level, name ? name : "");
 }
 
 void CApplication::LoadStage()

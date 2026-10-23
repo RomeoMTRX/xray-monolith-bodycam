@@ -25,6 +25,7 @@ public:
 	string2048 ls_header;
 	string2048 ls_tip_number;
 	string2048 ls_tip;
+	string256 ls_level; // display name of the level being loaded (JR loading screen)
 private:
 	FactoryPtr<IApplicationRender> m_pRender;
 
@@ -44,6 +45,7 @@ private:
 	void Level_Append(LPCSTR lname);
 public:
 	CGameFont* pFontSystem;
+	CGameFont* pFontLoadTitle; // larger font for the level name on the loading screen
 
 	// Levels
 	xr_vector<sLevelInfo> Levels;
@@ -58,6 +60,7 @@ public:
 	void LoadBegin();
 	void LoadEnd();
 	void LoadTitleInt(LPCSTR str1, LPCSTR str2, LPCSTR str3);
+	void LoadLevelName(LPCSTR name);
 	void LoadStage();
 	void LoadSwitch();
 	void LoadDraw();
