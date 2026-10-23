@@ -992,6 +992,9 @@ void CGamePersistent::OnRenderPPUI_PP()
 
 void CGamePersistent::LoadTitle(bool change_tip, shared_str map_name)
 {
+	// The level's display name for the loading screen, set before the stage redraws it.
+	if (map_name.size())
+		pApp->LoadLevelName(CStringTable().translate(map_name).c_str());
     {
         xrCriticalSectionGuard g(loadTitleCs);
         pApp->LoadStage();
