@@ -26,6 +26,9 @@ private:
 	// JR loading screen: a plain white texture shipped by the "JR - Loading Screen" mod. Without it the
 	// classic layout is drawn.
 	ref_shader sh_jr_white;
+	// Optional pre-blurred copy of the level picture (<logo>_blur.dds, just the picture, no frame) used as
+	// the out-of-focus backdrop behind the band.
+	ref_shader hLevelLogoBlur;
 	void draw_face(ref_shader& sh, Frect& coords, Frect& tex_coords, const Fvector2& tex_size);
 	void draw_quad(ref_shader& sh, const Frect& coords, const Frect& uv, u32 color_top, u32 color_bottom);
 	void load_draw_classic(CApplication& owner);

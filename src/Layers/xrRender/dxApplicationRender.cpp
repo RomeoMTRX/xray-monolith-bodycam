@@ -36,6 +36,7 @@ void dxApplicationRender::destroy_loading_shaders()
 	sh_progress.destroy();
 	hLevelLogo_Add.destroy();
 	sh_jr_white.destroy();
+	hLevelLogoBlur.destroy();
 
 	//Discord
 	discord_gameinfo.loadscreen = false;
@@ -52,6 +53,13 @@ void dxApplicationRender::destroy_loading_shaders()
 void dxApplicationRender::setLevelLogo(LPCSTR pszLogoName)
 {
 	hLevelLogo.create("hud\\default", pszLogoName);
+
+	string_path blur_name, blur_path;
+	strconcat(sizeof(blur_name), blur_name, pszLogoName, "_blur");
+	if (FS.exist(blur_path, "$game_textures$", blur_name, ".dds"))
+		hLevelLogoBlur.create("hud\\default", blur_name);
+	else
+		hLevelLogoBlur.destroy();
 }
 
 void dxApplicationRender::KillHW()
@@ -400,12 +408,50 @@ void dxApplicationRender::load_draw_jr(CApplication& owner)
 	}
 	else
 	{
-		if (hLevelLogo)
+		// Ambient: the same picture covering the whole screen, dark and out of focus.
+		const float a = cfg_float("ambient", .14f);
+		const u32 dim_rgb = u32(255.f * _min(_max(a, 0.f), 1.f));
+		if (hLevelLogoBlur)
 		{
-			// Ambient: the same picture covering the whole screen, very dark.
-			const float a = cfg_float("ambient", .14f);
-			const u32 dim = color_rgba(u32(255.f * a), u32(255.f * a), u32(255.f * a), 255);
-			draw_quad(hLevelLogo, jr_rect(0.f, 0.f, W, H), cover_uv(scr_aspect), dim, dim);
+			// Pre-blurred copy of just the picture: cover fit over its whole uv range.
+			Frect r = jr_rect(0.f, 0.f, 1.f, 1.f);
+			if (pic_aspect > scr_aspect)
+			{
+				const float keep = scr_aspect / pic_aspect;
+				r.lt.x = .5f - keep * .5f;
+				r.rb.x = .5f + keep * .5f;
+			}
+			else
+			{
+				const float keep = pic_aspect / scr_aspect;
+				r.lt.y = .5f - keep * .5f;
+				r.rb.y = .5f + keep * .5f;
+			}
+			const u32 dim = color_rgba(dim_rgb, dim_rgb, dim_rgb, 255);
+			draw_quad(hLevelLogoBlur, jr_rect(0.f, 0.f, W, H), r, dim, dim);
+		}
+		else if (hLevelLogo)
+		{
+			// No blurred copy: average jittered taps of the picture (layer k drawn at alpha 1/k gives the
+			// mean of all taps), sampled from an inset window so no tap reaches the frame.
+			const int taps = 32;
+			const float radius = W * cfg_float("ambient_blur", .025f);
+			const Frect base = cover_uv(scr_aspect);
+			const float du = (base.rb.x - base.lt.x) / W, dv = (base.rb.y - base.lt.y) / H;
+			Frect win = base;
+			win.lt.x += radius * du;
+			win.rb.x -= radius * du;
+			win.lt.y += radius * dv;
+			win.rb.y -= radius * dv;
+			for (int k = 0; k < taps; ++k)
+			{
+				const float rr = radius * _sqrt((k + .5f) / taps), ang = k * 2.39996323f;
+				const float ox = rr * _cos(ang) * du, oy = rr * _sin(ang) * dv;
+				const u32 alpha = u32(255.f / float(k + 1) + .5f);
+				const u32 c = color_rgba(dim_rgb, dim_rgb, dim_rgb, alpha);
+				draw_quad(hLevelLogo, jr_rect(0.f, 0.f, W, H),
+				          jr_rect(win.lt.x + ox, win.lt.y + oy, win.rb.x + ox, win.rb.y + oy), c, c);
+			}
 		}
 		// Band: full width at the picture's aspect, at most band_max_height of the screen (cropped to fit).
 		const float band_max = H * cfg_float("band_max_height", .62f);
