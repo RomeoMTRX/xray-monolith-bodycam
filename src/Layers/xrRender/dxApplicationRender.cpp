@@ -16,6 +16,10 @@ void dxApplicationRender::LoadBegin()
 	sh_progress.create("hud\\default", "ui\\ui_actor_loadgame_screen");
 	hLevelLogo_Add.create("hud\\default", "ui\\ui_actor_widescreen_sidepanels.dds");
 
+	string_path jr_white;
+	if (FS.exist(jr_white, "$game_textures$", "ui\\jr_ls_white", ".dds"))
+		sh_jr_white.create("hud\\default", "ui\\jr_ls_white");
+
 	ll_hGeom2.create(FVF::F_TL, RCache.Vertex.Buffer(),NULL);
 
 	//Discord
@@ -31,6 +35,7 @@ void dxApplicationRender::destroy_loading_shaders()
 	hLevelLogo.destroy();
 	sh_progress.destroy();
 	hLevelLogo_Add.destroy();
+	sh_jr_white.destroy();
 
 	//Discord
 	discord_gameinfo.loadscreen = false;
@@ -81,6 +86,15 @@ void dxApplicationRender::load_draw_internal(CApplication& owner)
 	{
 		return;
 	}
+
+	if (sh_jr_white)
+		load_draw_jr(owner);
+	else
+		load_draw_classic(owner);
+}
+
+void dxApplicationRender::load_draw_classic(CApplication& owner)
+{
 
 #if defined(USE_DX10) || defined(USE_DX11)
 	//	TODO: DX10: remove this
@@ -269,6 +283,205 @@ void dxApplicationRender::load_draw_internal(CApplication& owner)
 		logo_tex_coords.rb.set(1.0f, 0.77926f);
 
 		draw_face(hLevelLogo, r, logo_tex_coords, Fvector2().set(1, 1));
+	}
+}
+
+namespace
+{
+Frect jr_rect(float x0, float y0, float x1, float y1)
+{
+	Frect r;
+	r.lt.set(x0, y0);
+	r.rb.set(x1, y1);
+	return r;
+}
+
+// Upper case for headings: ASCII and cp1251 Cyrillic.
+void jr_upper_copy(char* dst, size_t dst_size, LPCSTR src)
+{
+	size_t i = 0;
+	for (; src && src[i] && i + 1 < dst_size; ++i)
+	{
+		unsigned char c = (unsigned char)src[i];
+		if (c >= 'a' && c <= 'z')
+			c = (unsigned char)(c - 32);
+		else if (c >= 0xE0)
+			c = (unsigned char)(c - 32);
+		else if (c == 0xB8)
+			c = 0xA8;
+		dst[i] = (char)c;
+	}
+	dst[i] = 0;
+}
+}
+
+// A quad with one colour along its top edge and one along its bottom edge (vertical fades).
+void dxApplicationRender::draw_quad(ref_shader& sh, const Frect& r, const Frect& uv, u32 color_top, u32 color_bottom)
+{
+	u32 Offset;
+	FVF::TL* pv = (FVF::TL*)RCache.Vertex.Lock(4, ll_hGeom.stride(), Offset);
+	pv->set(r.lt.x, r.rb.y, color_bottom, uv.lt.x, uv.rb.y);
+	pv++;
+	pv->set(r.lt.x, r.lt.y, color_top, uv.lt.x, uv.lt.y);
+	pv++;
+	pv->set(r.rb.x, r.rb.y, color_bottom, uv.rb.x, uv.rb.y);
+	pv++;
+	pv->set(r.rb.x, r.lt.y, color_top, uv.rb.x, uv.lt.y);
+	pv++;
+	RCache.Vertex.Unlock(4, ll_hGeom.stride());
+
+	RCache.set_Shader(sh);
+	RCache.set_Geometry(ll_hGeom);
+	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+}
+
+// JR loading screen. Two layouts, picked by [jr_loadscreen] in system.ltx (the JR - Loading Screen mod):
+//  band: the level picture as a full width cinematic band over a dark ambient copy of itself.
+//  full: the picture covers the screen, with a dark fade at the bottom for the text.
+// Then a thin progress line, the level name and the tip. Neutral palette with the eGUI tan accent.
+void dxApplicationRender::load_draw_jr(CApplication& owner)
+{
+	const float W = (float)Device.dwWidth;
+	const float H = (float)Device.dwHeight;
+	const Frect full_uv = jr_rect(0.f, 0.f, 1.f, 1.f);
+
+	LPCSTR S = "jr_loadscreen";
+	const bool cfg = !!pSettings->section_exist(S);
+	auto cfg_float = [&](LPCSTR key, float def) { return cfg && pSettings->line_exist(S, key) ? pSettings->r_float(S, key) : def; };
+	// Texture aspect and the picture's rectangle inside it. The defaults fit the vanilla style shots
+	// (2:1, a framed vignette baked into the top ~78%).
+	const float kTexAspect = cfg_float("tex_aspect", 2.f);
+	Fvector4 pic;
+	pic.set(.04f, .07f, .96f, .70f);
+	if (cfg && pSettings->line_exist(S, "uv_rect"))
+		pic = pSettings->r_fvector4(S, "uv_rect");
+	const float U0 = pic.x, V0 = pic.y, U1 = pic.z, V1 = pic.w;
+	const bool full = cfg && pSettings->line_exist(S, "layout") && !xr_strcmp(pSettings->r_string(S, "layout"), "full");
+	const float pic_aspect = (U1 - U0) * kTexAspect / _max(V1 - V0, .01f);
+	const float scr_aspect = W / H;
+
+	const u32 bg = color_rgba(10, 11, 11, 255);
+	draw_quad(sh_jr_white, jr_rect(0.f, 0.f, W, H), full_uv, bg, bg);
+
+	// The picture's uv rectangle cropped to cover a box of the given aspect.
+	auto cover_uv = [&](float box_aspect) {
+		Frect r = jr_rect(U0, V0, U1, V1);
+		if (pic_aspect > box_aspect)
+		{
+			const float keep = (U1 - U0) * box_aspect / pic_aspect, mid = (U0 + U1) * .5f;
+			r.lt.x = mid - keep * .5f;
+			r.rb.x = mid + keep * .5f;
+		}
+		else
+		{
+			const float keep = (V1 - V0) * pic_aspect / box_aspect, mid = (V0 + V1) * .5f;
+			r.lt.y = mid - keep * .5f;
+			r.rb.y = mid + keep * .5f;
+		}
+		return r;
+	};
+
+	float bar_y, text_y;
+	if (full)
+	{
+		if (hLevelLogo)
+		{
+			const u32 white = color_rgba(255, 255, 255, 255);
+			draw_quad(hLevelLogo, jr_rect(0.f, 0.f, W, H), cover_uv(scr_aspect), white, white);
+		}
+		// Fades for the text: a light one at the top, a deep one over the lower half.
+		const u32 top_dark = color_rgba(10, 11, 11, 120), clear = color_rgba(10, 11, 11, 0);
+		draw_quad(sh_jr_white, jr_rect(0.f, 0.f, W, floorf(H * .14f)), full_uv, top_dark, clear);
+		const float f0 = floorf(H * .40f), f1 = floorf(H * .70f);
+		draw_quad(sh_jr_white, jr_rect(0.f, f0, W, f1), full_uv, clear, color_rgba(10, 11, 11, 205));
+		draw_quad(sh_jr_white, jr_rect(0.f, f1, W, H), full_uv, color_rgba(10, 11, 11, 205), color_rgba(10, 11, 11, 245));
+		bar_y = floorf(H * .70f);
+		text_y = bar_y + H * .03f;
+	}
+	else
+	{
+		if (hLevelLogo)
+		{
+			// Ambient: the same picture covering the whole screen, very dark.
+			const float a = cfg_float("ambient", .14f);
+			const u32 dim = color_rgba(u32(255.f * a), u32(255.f * a), u32(255.f * a), 255);
+			draw_quad(hLevelLogo, jr_rect(0.f, 0.f, W, H), cover_uv(scr_aspect), dim, dim);
+		}
+		// Band: full width at the picture's aspect, at most band_max_height of the screen (cropped to fit).
+		const float band_max = H * cfg_float("band_max_height", .62f);
+		const float band_top = floorf(H * .045f);
+		const float band_h = _min(W / pic_aspect, band_max);
+		const Frect buv = cover_uv(W / band_h);
+		const float band_bottom = band_top + band_h;
+		if (hLevelLogo)
+		{
+			const float y1 = band_top + band_h * .10f;
+			const float y2 = band_bottom - band_h * .32f;
+			const float dv = (buv.rb.y - buv.lt.y) / band_h;
+			const float v1y = buv.lt.y + (y1 - band_top) * dv, v2y = buv.lt.y + (y2 - band_top) * dv;
+			const u32 clear = color_rgba(255, 255, 255, 0), solid = color_rgba(255, 255, 255, 255);
+			draw_quad(hLevelLogo, jr_rect(0.f, band_top, W, y1), jr_rect(buv.lt.x, buv.lt.y, buv.rb.x, v1y), clear, solid);
+			draw_quad(hLevelLogo, jr_rect(0.f, y1, W, y2), jr_rect(buv.lt.x, v1y, buv.rb.x, v2y), solid, solid);
+			draw_quad(hLevelLogo, jr_rect(0.f, y2, W, band_bottom), jr_rect(buv.lt.x, v2y, buv.rb.x, buv.rb.y), solid, clear);
+		}
+		bar_y = floorf(band_bottom - band_h * .06f);
+		text_y = bar_y + H * .03f;
+	}
+
+	// Progress: a thin line.
+	const float bar_h = _max(2.f, floorf(H / 480.f));
+	const float bx0 = floorf(W * .2f), bx1 = floorf(W * .8f);
+	float frac = owner.max_load_stage > 0 ? float(owner.load_stage + 1) / float(owner.max_load_stage) : 0.f;
+	clamp(frac, 0.f, 1.f);
+	const u32 track = color_rgba(255, 255, 255, 46);
+	const u32 accent = color_rgba(214, 190, 140, 240);
+	draw_quad(sh_jr_white, jr_rect(bx0, bar_y, bx1, bar_y + bar_h), full_uv, track, track);
+	if (frac > 0.f)
+		draw_quad(sh_jr_white, jr_rect(bx0, bar_y, bx0 + (bx1 - bx0) * frac, bar_y + bar_h), full_uv, accent, accent);
+
+	// Text: level name, tip heading, tip.
+	CGameFont* F = owner.pFontSystem;
+	if (!F)
+		return;
+	CGameFont* T = owner.pFontLoadTitle ? owner.pFontLoadTitle : F;
+
+	string256 title;
+	jr_upper_copy(title, sizeof(title), owner.ls_level[0] ? owner.ls_level : owner.ls_header);
+	float y = text_y;
+	if (title[0])
+	{
+		T->Clear();
+		T->SetColor(color_rgba(236, 236, 232, 255));
+		T->SetAligment(CGameFont::alCenter);
+		T->OutSet(W * .5f, y);
+		T->OutNext("%s", title);
+		T->OnRender();
+		y += T->CurrentHeight_() * 1.2f;
+	}
+
+	string2048 label;
+	jr_upper_copy(label, sizeof(label), owner.ls_tip_number);
+	for (size_t n = xr_strlen(label); n && (label[n - 1] == ':' || label[n - 1] == ' '); --n)
+		label[n - 1] = 0;
+	if (label[0])
+	{
+		F->Clear();
+		F->SetColor(color_rgba(214, 190, 140, 230));
+		F->SetAligment(CGameFont::alCenter);
+		F->OutSet(W * .5f, y);
+		F->OutNext("%s", label);
+		F->OnRender();
+		y += F->CurrentHeight_() * 1.35f;
+	}
+
+	if (owner.ls_tip[0])
+	{
+		F->Clear();
+		F->SetColor(color_rgba(190, 192, 188, 235));
+		F->SetAligment(CGameFont::alCenter);
+		F->OutSet(W * .5f, y);
+		draw_multiline_text(F, W * .58f, owner.ls_tip);
+		F->OnRender();
 	}
 }
 
