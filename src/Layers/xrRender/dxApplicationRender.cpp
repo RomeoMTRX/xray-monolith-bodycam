@@ -389,6 +389,8 @@ void dxApplicationRender::load_draw_jr(CApplication& owner)
 		return r;
 	};
 
+	// Gap between the progress line and the level name, as a fraction of the screen height (text_gap).
+	const float text_gap = H * cfg_float("text_gap", .03f);
 	float bar_y, text_y;
 	if (full)
 	{
@@ -404,7 +406,7 @@ void dxApplicationRender::load_draw_jr(CApplication& owner)
 		draw_quad(sh_jr_white, jr_rect(0.f, f0, W, f1), full_uv, clear, color_rgba(10, 11, 11, 205));
 		draw_quad(sh_jr_white, jr_rect(0.f, f1, W, H), full_uv, color_rgba(10, 11, 11, 205), color_rgba(10, 11, 11, 245));
 		bar_y = floorf(H * .70f);
-		text_y = bar_y + H * .03f;
+		text_y = bar_y + text_gap;
 	}
 	else
 	{
@@ -471,7 +473,7 @@ void dxApplicationRender::load_draw_jr(CApplication& owner)
 			draw_quad(hLevelLogo, jr_rect(0.f, y2, W, band_bottom), jr_rect(buv.lt.x, v2y, buv.rb.x, buv.rb.y), solid, clear);
 		}
 		bar_y = floorf(band_bottom - band_h * .06f);
-		text_y = bar_y + H * .03f;
+		text_y = bar_y + text_gap;
 	}
 
 	// Progress: a thin line.
